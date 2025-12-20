@@ -1,5 +1,19 @@
 ![](assets/banner.png)
 
+<div align="center">
+	<img src="https://img.shields.io/badge/📩-tcyeee@outlook.com-red">
+	<!-- last commit -->
+	<img src="https://img.shields.io/github/last-commit/tcyeee/obsidian-image-cluster">
+	<!-- release -->
+	<img src="https://img.shields.io/github/v/release/tcyeee/obsidian-image-cluster">
+	<!-- license -->
+	<img src="https://img.shields.io/github/license/tcyeee/obsidian-image-cluster">
+	<!-- stars -->
+	<img src="https://img.shields.io/github/stars/tcyeee/obsidian-image-cluster">
+</div>
+
+<br>
+
 <div align="center"><a href="i18n/README.zh.md">中文</a> ｜ English</div>
 
 <br>
