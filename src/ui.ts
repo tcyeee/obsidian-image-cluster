@@ -13,10 +13,10 @@ export function createImageContainerElement(option: SettingOptions): HTMLDivElem
 /**
  * 创建右上角的 setting 按钮（仅图标，无事件绑定）。
  */
-export function createSettingButtonElement(): HTMLButtonElement {
-    const settingBtn = document.createElement("button");
-    settingBtn.type = "button";
-    settingBtn.className = "plugin-image-setting-btn-container";
+export function createSettingButtonElement(): HTMLDivElement {
+    const settingBtn = document.createElement("div");
+    settingBtn.className = "plugin-image-setting-btn-container clickable-icon";
+    settingBtn.setAttribute("aria-label", "Image group settings");
 
     const settingIcon = document.createElement("div");
     settingIcon.className = "icon--settings";

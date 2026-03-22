@@ -159,11 +159,14 @@
   position: relative; /* 保证setting按钮绝对定位参照容器 */
 }
 
-/* setting操作面板，仅样式 */
+/* setting操作面板，仅样式；
+   position: absolute 相对于 .plugin-image-setting-outer（已定位），
+   top: 100% 使面板紧贴按钮下方弹出 */
 .plugin-image-setting-panel {
   position: absolute;
-  top: 44px;
-  right: 12px;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
   min-width: 160px;
   display: none;
   background: #fff;
@@ -296,31 +299,51 @@
   color: #2350a2;
 }
 
-.plugin-image-setting-btn-container {
+/* ── setting 外层包装 ── */
+
+/* 阅读模式：wrapper 在 .plugin-image-container 内，绝对定位到右上角 */
+.plugin-image-container .plugin-image-setting-outer {
     position: absolute;
-    top: 9px;
-    right: 35px;
-    display: none;
-    color: rgb(97, 97, 97);
-    cursor: pointer;
-    align-items: center;
-    justify-content: center;
+    top: 8px;
+    right: 4px;
     z-index: 10;
 }
-.plugin-image-setting-btn-container.plugin-image-setting-btn-container--visible {
-  display: flex;
+
+/* 编辑模式（Live Preview）：wrapper 在 .cm-preview-code-block 内，
+   紧贴 edit-block-button 左侧；使用与原生按钮相同的 top 值 */
+.cm-preview-code-block .plugin-image-setting-outer {
+    position: absolute;
+    top: 0;
+    right: calc(var(--icon-size, 24px) + 2px);
+    z-index: 10;
 }
 
-/* 鼠标悬停在整个图片容器区域时，给已显示的 setting 按钮添加背景 */
-.plugin-image-container:hover .plugin-image-setting-btn-container.plugin-image-setting-btn-container--visible{
-  background: white;
+/* ── setting 按钮 ── */
+
+/* 默认隐藏（opacity 方式，不与 clickable-icon 的 display 冲突） */
+.plugin-image-setting-btn-container {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s;
+}
+
+/* 阅读模式：鼠标悬停 container 时，由 JS 添加 --visible 类 */
+.plugin-image-container:hover .plugin-image-setting-btn-container--visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 编辑模式：鼠标悬停 code block 时，由 CSS 直接控制 */
+.cm-preview-code-block:hover .plugin-image-setting-btn-container {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .icon--settings {
-    --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'%3E%3Cpath d='M14 17H5M19 7h-9'/%3E%3Ccircle cx='17' cy='17' r='3'/%3E%3Ccircle cx='7' cy='7' r='3'/%3E%3C/g%3E%3C/svg%3E");    display: inline-block;
-    width: 16px;
-    height: 16px;
-    color: gray;
+    --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'%3E%3Cpath d='M14 17H5M19 7h-9'/%3E%3Ccircle cx='17' cy='17' r='3'/%3E%3Ccircle cx='7' cy='7' r='3'/%3E%3C/g%3E%3C/svg%3E");
+    display: inline-block;
+    width: var(--icon-size, 18px);
+    height: var(--icon-size, 18px);
     background-color: currentColor;
     -webkit-mask-image: var(--svg);
     mask-image: var(--svg);

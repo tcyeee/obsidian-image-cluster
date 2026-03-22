@@ -1,8 +1,8 @@
 import ImgRowPlugin from "main";
 import { setCssProps, parseStyleOptions, md5, ensureThumbnailForFile } from "src/utils";
 import { createImageContainerElement, createSettingButtonElement, createSettingPanelDom, createErrorDiv } from "src/ui";
-import { MarkdownViewWithCurrentMode, SettingOptions as SettingOptions, SettingPanelDom } from "./domain";
-import { MarkdownView, MarkdownPostProcessorContext, TFile, normalizePath } from "obsidian";
+import { SettingOptions as SettingOptions, SettingPanelDom } from "./domain";
+import { MarkdownPostProcessorContext, TFile, normalizePath } from "obsidian";
 import { config } from "./config";
 
 /**
@@ -71,6 +71,22 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
         // 当用户通过点击蒙版关闭 limit 限制时，会调用该回调把最新配置写回到代码块配置行。
         applySettingsToContainer(container, option, () => {
             void persistOptionsToSource(option, plugin, ctx, el);
+        });
+
+        // 编辑模式（Live Preview）：el 在处理器回调时尚未挂入 DOM，
+        // 用 requestAnimationFrame 等待挂载完成后，再将 setting wrapper 移入
+        // .cm-preview-code-block，放在原生 edit-block-button 的左侧。
+        requestAnimationFrame(() => {
+            const codeBlock = el.closest('.cm-preview-code-block');
+            const settingWrapper = container.querySelector<HTMLElement>('.plugin-image-setting-outer');
+            if (codeBlock && settingWrapper) {
+                const editBtn = codeBlock.querySelector('.edit-block-button');
+                if (editBtn) {
+                    codeBlock.insertBefore(settingWrapper, editBtn);
+                } else {
+                    codeBlock.appendChild(settingWrapper);
+                }
+            }
         });
     });
 }
@@ -188,64 +204,58 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
 export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ctx: MarkdownPostProcessorContext, el: HTMLElement): HTMLDivElement {
     const container = createImageContainerElement(option);
 
-    // setting按钮（仅在阅读模式下可见）
+    // 外层包装：统一承载 setting 按钮 + 面板，便于整体迁移到 .cm-preview-code-block
+    const settingWrapper = document.createElement("div");
+    settingWrapper.className = "plugin-image-setting-outer";
+    container.appendChild(settingWrapper);
+
     const settingBtn = createSettingButtonElement();
-    container.appendChild(settingBtn);
+    settingWrapper.appendChild(settingBtn);
 
     // 为每个容器生成独立的 radio 分组名，避免多个代码块之间互相影响
     const sizeGroupName = `imgs-size-${Math.random().toString(36).slice(2, 8)}`;
 
-    // setting 面板及其交互逻辑
-    const { panel, persistIfNeeded } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName,);
+    // setting 面板及其交互逻辑（panel 由 setupSettingPanel 创建，此处挂到 wrapper 上）
+    const { panel, persistIfNeeded } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName);
+    settingWrapper.appendChild(panel);
 
-    // 仅在阅读模式下启用面板入口
-    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-    const legacyView = view as MarkdownViewWithCurrentMode | null;
-    const mode = view?.getMode?.() ?? legacyView?.currentMode?.type ?? "preview";
-    const isPreviewMode = mode === "preview";
+    const isPanelOpen = () => panel.classList.contains("plugin-image-setting-panel--open");
+    const openPanel = () => {
+        panel.classList.add("plugin-image-setting-panel--open");
+    };
+    const closePanel = () => {
+        if (!isPanelOpen()) return;
+        persistIfNeeded();
+        panel.classList.remove("plugin-image-setting-panel--open");
+    };
 
-    if (isPreviewMode) {
-        const isPanelOpen = () => panel.classList.contains("plugin-image-setting-panel--open");
-        const openPanel = () => {
-            panel.classList.add("plugin-image-setting-panel--open");
-        };
-        const closePanel = () => {
-            if (!isPanelOpen()) return;
-            persistIfNeeded();
-            panel.classList.remove("plugin-image-setting-panel--open");
-        };
+    // setting按钮点击显示/隐藏面板
+    settingBtn.onclick = (e) => {
+        e.stopPropagation();
+        isPanelOpen() ? closePanel() : openPanel();
+    };
 
-        // setting按钮点击显示/隐藏面板
-        settingBtn.onclick = (e) => {
-            e.stopPropagation();
-            const isOpen = isPanelOpen();
-            if (isOpen) {
-                closePanel();
-            } else {
-                openPanel();
-            }
-        };
-
-        // 点击面板外自动关闭
-        document.addEventListener("click", (e: MouseEvent) => {
-            const target = e.target;
-            if (!(target instanceof Node)) return;
-            if (!container.contains(target)) {
-                closePanel();
-            }
-        });
-
-        // 鼠标移入图片容器时显示设置按钮
-        container.addEventListener("mouseenter", () => {
-            settingBtn.classList.add("plugin-image-setting-btn-container--visible");
-        });
-
-        // 鼠标移出图片容器时隐藏设置按钮
-        container.addEventListener("mouseleave", () => {
-            settingBtn.classList.remove("plugin-image-setting-btn-container--visible");
+    // 点击 wrapper 外部时自动关闭面板
+    document.addEventListener("click", (e: MouseEvent) => {
+        const target = e.target;
+        if (!(target instanceof Node)) return;
+        if (!settingWrapper.contains(target)) {
             closePanel();
-        });
-    }
+        }
+    });
+
+    // 鼠标移入/移出图片容器：控制阅读模式下按钮的可见性
+    // 编辑模式下 wrapper 已迁移到 .cm-preview-code-block，由 CSS :hover 控制可见性
+    container.addEventListener("mouseenter", () => {
+        settingBtn.classList.add("plugin-image-setting-btn-container--visible");
+    });
+    container.addEventListener("mouseleave", () => {
+        settingBtn.classList.remove("plugin-image-setting-btn-container--visible");
+        // 编辑模式下 wrapper 已移出 container，panel 不在 container 树中，跳过关闭
+        if (container.contains(panel)) {
+            closePanel();
+        }
+    });
 
     return container;
 }
@@ -277,7 +287,7 @@ function setupSettingPanel(
 ): { panel: HTMLDivElement; persistIfNeeded: () => void } {
     const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, sizeRadios }: SettingPanelDom = createSettingPanelDom(sizeGroupName);
 
-    container.appendChild(panel);
+    // 注意：panel 的 DOM 挂载由调用方（createContainer）负责
 
     // 根据当前的配置初始化面板勾选状态
     if (borderCheckbox) borderCheckbox.checked = option.border;
