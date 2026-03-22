@@ -186,6 +186,14 @@
 .plugin-image-setting-panel.plugin-image-setting-panel--open {
   display: flex;
 }
+
+.plugin-image-panel-safe-zone {
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
 .plugin-image-setting-checkbox {
   display: flex;
   align-items: center;

@@ -332,19 +332,28 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
         }
     });
 
+    // 安全区域：面板顶部透明块，覆盖按钮与面板之间的间隙，防止鼠标经过间隙时面板提前消失
+    const safeZone = document.createElement("div");
+    safeZone.classList.add("plugin-image-panel-safe-zone");
+    panel.appendChild(safeZone);
+
     // 鼠标移入/移出图片容器：控制阅读模式下按钮的可见性
     // 编辑模式下 wrapper 已迁移到 .cm-preview-code-block，由 CSS :hover 控制可见性
     container.addEventListener("mouseenter", () => {
         settingBtn.classList.add("plugin-image-setting-btn-container--visible");
     });
-    container.addEventListener("mouseleave", () => {
+    container.addEventListener("mouseleave", (e: MouseEvent) => {
         settingBtn.classList.remove("plugin-image-setting-btn-container--visible");
-        // 以 settingWrapper 是否仍在 container 内来区分阅读/编辑模式：
-        // - 阅读模式：wrapper 未被移走，鼠标离开后关闭面板
-        // - 编辑模式：wrapper 已移至 .cm-preview-code-block，跳过（由点击外部事件关闭）
-        if (container.contains(settingWrapper)) {
-            closePanel();
-        }
+        // 如果鼠标移入了面板（含安全区域），不关闭面板
+        if (container.contains(settingWrapper) && panel.contains(e.relatedTarget as Node)) return;
+        closePanel();
+    });
+
+    // 鼠标离开面板（含安全区域）时关闭
+    panel.addEventListener("mouseleave", (e: MouseEvent) => {
+        // 如果鼠标回到了容器（按钮区域），由容器的 mouseleave 逻辑决定是否关闭
+        if (container.contains(e.relatedTarget as Node)) return;
+        closePanel();
     });
 
     return container;
