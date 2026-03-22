@@ -313,8 +313,8 @@
    紧贴 edit-block-button 左侧；使用与原生按钮相同的 top 值 */
 .cm-preview-code-block .plugin-image-setting-outer {
     position: absolute;
-    top: 0;
-    right: calc(var(--icon-size, 24px) + 2px);
+    top: 5px;
+    right: calc(var(--icon-size, 24px) + 20px);
     z-index: 10;
 }
 
