@@ -51,6 +51,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     const imgEl = createImage(option, thumbSrc, srcList, imgIdx);
                     const wrapper = document.createElement("div");
                     wrapper.classList.add("plugin-image-wrapper");
+                    wrapper.dataset.imgLine = line.trim(); // 保存原始 markdown 行，供拖拽排序写回使用
                     wrapper.appendChild(imgEl);
                     container.appendChild(wrapper);
 
@@ -86,6 +87,8 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                 } else {
                     codeBlock.appendChild(settingWrapper);
                 }
+                // 编辑模式下启用图片拖拽排序
+                enableDragSort(container, plugin, ctx, el);
             }
         });
     });
@@ -769,4 +772,115 @@ function buildInnerSourceFromOptions(option: SettingOptions, currentInner: strin
     return `${styleLine}${endSign}\n${imagesPart}`;
 }
 
+/**
+ * 编辑模式下为图片容器添加拖拽排序功能。
+ * 拖拽完成后自动将新顺序写回对应 Markdown 文件。
+ */
+function enableDragSort(
+    container: HTMLDivElement,
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+): void {
+    let dragSrcEl: HTMLElement | null = null;
+
+    const getWrappers = () =>
+        Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
+
+    const clearIndicators = () =>
+        getWrappers().forEach(w => w.classList.remove("plugin-image-drag-before", "plugin-image-drag-after"));
+
+    getWrappers().forEach(wrapper => {
+        wrapper.draggable = true;
+        wrapper.classList.add("plugin-image-sortable");
+
+        wrapper.addEventListener("dragstart", e => {
+            dragSrcEl = wrapper;
+            wrapper.classList.add("plugin-image-dragging");
+            e.dataTransfer?.setData("text/plain", "");
+            if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+        });
+
+        wrapper.addEventListener("dragend", () => {
+            wrapper.classList.remove("plugin-image-dragging");
+            clearIndicators();
+            dragSrcEl = null;
+        });
+
+        wrapper.addEventListener("dragover", e => {
+            e.preventDefault();
+            if (!dragSrcEl || dragSrcEl === wrapper) return;
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+            clearIndicators();
+            const rect = wrapper.getBoundingClientRect();
+            if (e.clientX < rect.left + rect.width / 2) {
+                wrapper.classList.add("plugin-image-drag-before");
+            } else {
+                wrapper.classList.add("plugin-image-drag-after");
+            }
+        });
+
+        wrapper.addEventListener("dragleave", () => {
+            wrapper.classList.remove("plugin-image-drag-before", "plugin-image-drag-after");
+        });
+
+        wrapper.addEventListener("drop", e => {
+            e.preventDefault();
+            if (!dragSrcEl || dragSrcEl === wrapper) return;
+            const rect = wrapper.getBoundingClientRect();
+            if (e.clientX < rect.left + rect.width / 2) {
+                container.insertBefore(dragSrcEl, wrapper);
+            } else {
+                container.insertBefore(dragSrcEl, wrapper.nextSibling);
+            }
+            clearIndicators();
+            void persistReorderToSource(container, plugin, ctx, el);
+        });
+    });
+}
+
+/**
+ * 将当前 DOM 中 wrapper 的排列顺序写回对应 Markdown 文件的代码块。
+ */
+async function persistReorderToSource(
+    container: HTMLDivElement,
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+): Promise<void> {
+    const section = ctx.getSectionInfo(el);
+    if (!section) return;
+
+    const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(file instanceof TFile)) return;
+
+    const content = await plugin.app.vault.read(file);
+    const lines = content.split("\n");
+
+    const innerStart = section.lineStart + 1;
+    const innerEnd = section.lineEnd;
+    if (innerStart >= innerEnd || innerStart < 0 || innerEnd > lines.length) return;
+
+    const innerLines = lines.slice(innerStart, innerEnd);
+
+    // 保留配置行（含 ;; 的行）
+    const configLine = innerLines.find(l => l.includes(";;")) ?? null;
+
+    // 按 DOM 当前顺序读取各 wrapper 存储的原始 markdown 图片行
+    const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
+    const newImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
+    if (newImageLines.length === 0) return;
+
+    const newInner = configLine
+        ? `${configLine}\n${newImageLines.join("\n")}`
+        : newImageLines.join("\n");
+
+    const newLines = [
+        ...lines.slice(0, innerStart),
+        ...newInner.split("\n"),
+        ...lines.slice(innerEnd),
+    ];
+
+    await plugin.app.vault.modify(file, newLines.join("\n"));
+}
 

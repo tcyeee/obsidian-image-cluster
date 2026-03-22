@@ -7,6 +7,12 @@
   position: relative;
 }
 
+/* 拖拽排序 */
+.plugin-image-sortable       { cursor: grab; }
+.plugin-image-dragging       { opacity: 0.35; }
+.plugin-image-drag-before    { box-shadow: -3px 0 0 0 var(--interactive-accent, #5677c0); }
+.plugin-image-drag-after     { box-shadow:  3px 0 0 0 var(--interactive-accent, #5677c0); }
+
 .plugin-image {
   display: block;
   object-fit: cover;
