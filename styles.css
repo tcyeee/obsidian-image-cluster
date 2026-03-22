@@ -157,16 +157,13 @@
 	padding: 8px 0;
   gap: var(--plugin-container-gap, 10px);
   position: relative; /* 保证setting按钮绝对定位参照容器 */
+  cursor: pointer; /* 覆盖编辑模式下 CodeMirror 的文本光标 */
 }
 
 /* setting操作面板，仅样式；
-   position: absolute 相对于 .plugin-image-setting-outer（已定位），
-   top: 100% 使面板紧贴按钮下方弹出 */
+   position: fixed 绕过 CodeMirror overflow 裁剪，top/right 由 JS 动态计算注入 */
 .plugin-image-setting-panel {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
+  position: fixed;
   min-width: 160px;
   display: none;
   background: #fff;

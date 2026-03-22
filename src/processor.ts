@@ -215,12 +215,18 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     // 为每个容器生成独立的 radio 分组名，避免多个代码块之间互相影响
     const sizeGroupName = `imgs-size-${Math.random().toString(36).slice(2, 8)}`;
 
-    // setting 面板及其交互逻辑（panel 由 setupSettingPanel 创建，此处挂到 wrapper 上）
+    // setting 面板由 setupSettingPanel 创建；
+    // 挂到 document.body 以彻底脱离 CodeMirror 渲染树，
+    // 避免祖先元素的 transform/will-change 干扰 position:fixed 定位
     const { panel, persistIfNeeded } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName);
-    settingWrapper.appendChild(panel);
+    document.body.appendChild(panel);
 
     const isPanelOpen = () => panel.classList.contains("plugin-image-setting-panel--open");
     const openPanel = () => {
+        // 根据按钮当前的视口坐标动态定位面板
+        const rect = settingWrapper.getBoundingClientRect();
+        panel.style.top = `${rect.bottom + 4}px`;
+        panel.style.right = `${window.innerWidth - rect.right}px`;
         panel.classList.add("plugin-image-setting-panel--open");
     };
     const closePanel = () => {
@@ -235,11 +241,11 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
         isPanelOpen() ? closePanel() : openPanel();
     };
 
-    // 点击 wrapper 外部时自动关闭面板
+    // 点击 wrapper 或 panel 之外时自动关闭（panel 已移至 body，需单独判断）
     document.addEventListener("click", (e: MouseEvent) => {
         const target = e.target;
         if (!(target instanceof Node)) return;
-        if (!settingWrapper.contains(target)) {
+        if (!settingWrapper.contains(target) && !panel.contains(target)) {
             closePanel();
         }
     });
@@ -251,8 +257,10 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     });
     container.addEventListener("mouseleave", () => {
         settingBtn.classList.remove("plugin-image-setting-btn-container--visible");
-        // 编辑模式下 wrapper 已移出 container，panel 不在 container 树中，跳过关闭
-        if (container.contains(panel)) {
+        // 以 settingWrapper 是否仍在 container 内来区分阅读/编辑模式：
+        // - 阅读模式：wrapper 未被移走，鼠标离开后关闭面板
+        // - 编辑模式：wrapper 已移至 .cm-preview-code-block，跳过（由点击外部事件关闭）
+        if (container.contains(settingWrapper)) {
             closePanel();
         }
     });
