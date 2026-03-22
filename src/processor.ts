@@ -123,6 +123,14 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         nextBtn.className = "plugin-image-nav-btn plugin-image-nav-btn-next";
 
         let scale = 1;
+        let tx = 0; // 拖拽平移 X
+        let ty = 0; // 拖拽平移 Y
+
+        const applyTransform = () => {
+            setCssProps(largeImg, { transform: `translate(${tx}px, ${ty}px) scale(${scale})` });
+        };
+
+        // 滚轮缩放
         largeImg.addEventListener("wheel", e => {
             e.preventDefault();
             const delta = e.deltaY;
@@ -131,22 +139,91 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             } else {
                 scale = Math.max(config.PREVIEW_MIN_SCALE, scale - 0.1);
             }
-            setCssProps(largeImg, { transform: `scale(${scale})` });
+            applyTransform();
         });
-        // 切换图片函数
-        const switchTo = (newIdx: number) => {
-            if (!srcList) return;
-            curIdx = newIdx;
-            largeImg.src = srcList[curIdx];
-            scale = 1;
-            setCssProps(largeImg, { transform: "scale(1)" });
-            updateBtnState();
+
+        // 拖拽平移
+        let isDragging = false;
+        let wasDragged = false; // 用于区分拖拽和点击，避免拖拽结束时误关闭预览
+        let dragStartX = 0;
+        let dragStartY = 0;
+
+        largeImg.addEventListener("mousedown", e => {
+            isDragging = true;
+            wasDragged = false;
+            dragStartX = e.clientX - tx;
+            dragStartY = e.clientY - ty;
+            largeImg.style.cursor = "grabbing";
+            e.preventDefault();
+        });
+
+        overlay.addEventListener("mousemove", e => {
+            if (!isDragging) return;
+            tx = e.clientX - dragStartX;
+            ty = e.clientY - dragStartY;
+            wasDragged = true;
+            applyTransform();
+        });
+
+        overlay.addEventListener("mouseup", () => {
+            if (isDragging) {
+                isDragging = false;
+                largeImg.style.cursor = "grab";
+            }
+        });
+
+        overlay.addEventListener("mouseleave", () => {
+            isDragging = false;
+        });
+
+        // 切换图片函数（带方向滑动动画）
+        const ANIM_MS = 220;
+        let isAnimating = false;
+
+        const switchTo = (newIdx: number, direction: "next" | "prev") => {
+            if (!srcList || isAnimating) return;
+            isAnimating = true;
+
+            const exitX  = direction === "next" ? -140 : 140;  // 当前图片滑出方向
+            const enterX = direction === "next" ?  140 : -140; // 新图片进入起始位置
+
+            // 阶段一：当前图片滑出 + 淡出
+            largeImg.style.transition = `transform ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`;
+            largeImg.style.transform  = `translate(${exitX}px, 0) scale(${scale})`;
+            largeImg.style.opacity    = "0";
+
+            setTimeout(() => {
+                // 阶段二：切换图源，瞬间移到入场起始位置（不触发 transition）
+                curIdx = newIdx;
+                largeImg.src = srcList![curIdx];
+                scale = 1; tx = 0; ty = 0;
+
+                largeImg.style.transition = "none";
+                largeImg.style.transform  = `translate(${enterX}px, 0) scale(1)`;
+                largeImg.style.opacity    = "0";
+
+                // 阶段三：滑入 + 淡入（两次 rAF 确保浏览器先处理 transition:none）
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        largeImg.style.transition = `transform ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`;
+                        largeImg.style.transform  = "translate(0, 0) scale(1)";
+                        largeImg.style.opacity    = "1";
+
+                        setTimeout(() => {
+                            largeImg.style.transition = ""; // 还原 CSS 默认 transition
+                            isAnimating = false;
+                        }, ANIM_MS);
+                    });
+                });
+
+                updateBtnState();
+            }, ANIM_MS);
         };
         prevBtn.onclick = () => {
-            if (srcList && curIdx > 0) switchTo(curIdx - 1);
+            if (srcList && curIdx > 0) switchTo(curIdx - 1, "prev");
         };
         nextBtn.onclick = () => {
-            if (srcList && curIdx < srcList.length - 1) switchTo(curIdx + 1);
+            if (srcList && curIdx < srcList.length - 1) switchTo(curIdx + 1, "next");
         };
         function updateBtnState() {
             if (!srcList) return;
@@ -166,6 +243,8 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             overlay.classList.add("plugin-image-overlay-visible");
         });
         overlay.addEventListener("click", (event) => {
+            // 拖拽结束时会触发 click，用 wasDragged 过滤掉
+            if (wasDragged) { wasDragged = false; return; }
             if (event.target === overlay) closePreview();
         });
         // 支持左右方向键切换
@@ -173,10 +252,10 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             if (event.key === "Escape") closePreview();
             if (srcList && srcList.length > 1 && overlay.parentNode) {
                 if (event.key === "ArrowLeft" && curIdx > 0) {
-                    switchTo(curIdx - 1);
+                    switchTo(curIdx - 1, "prev");
                 }
                 if (event.key === "ArrowRight" && curIdx < srcList.length - 1) {
-                    switchTo(curIdx + 1);
+                    switchTo(curIdx + 1, "next");
                 }
             }
         };
