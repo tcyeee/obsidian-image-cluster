@@ -156,7 +156,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             wasDragged = false;
             dragStartX = e.clientX - tx;
             dragStartY = e.clientY - ty;
-            largeImg.style.cursor = "grabbing";
+            setCssProps(largeImg, { cursor: "grabbing" });
             e.preventDefault();
         });
 
@@ -171,7 +171,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         overlay.addEventListener("mouseup", () => {
             if (isDragging) {
                 isDragging = false;
-                largeImg.style.cursor = "grab";
+                setCssProps(largeImg, { cursor: "grab" });
             }
         });
 
@@ -191,29 +191,29 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             const enterX = direction === "next" ?  140 : -140; // 新图片进入起始位置
 
             // 阶段一：当前图片滑出 + 淡出
-            largeImg.style.transition = `transform ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`;
-            largeImg.style.transform  = `translate(${exitX}px, 0) scale(${scale})`;
-            largeImg.style.opacity    = "0";
+            setCssProps(largeImg, { transition: `transform ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease` });
+            setCssProps(largeImg, { transform: `translate(${exitX}px, 0) scale(${scale})` });
+            setCssProps(largeImg, { opacity: "0" });
 
             setTimeout(() => {
                 // 阶段二：切换图源，瞬间移到入场起始位置（不触发 transition）
                 curIdx = newIdx;
-                largeImg.src = srcList![curIdx];
+                largeImg.src = srcList[curIdx];
                 scale = 1; tx = 0; ty = 0;
 
-                largeImg.style.transition = "none";
-                largeImg.style.transform  = `translate(${enterX}px, 0) scale(1)`;
-                largeImg.style.opacity    = "0";
+                setCssProps(largeImg, { transition: "none" });
+                setCssProps(largeImg, { transform: `translate(${enterX}px, 0) scale(1)` });
+                setCssProps(largeImg, { opacity: "0" });
 
                 // 阶段三：滑入 + 淡入（两次 rAF 确保浏览器先处理 transition:none）
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                        largeImg.style.transition = `transform ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`;
-                        largeImg.style.transform  = "translate(0, 0) scale(1)";
-                        largeImg.style.opacity    = "1";
+                        setCssProps(largeImg, { transition: `transform ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease` });
+                        setCssProps(largeImg, { transform: "translate(0, 0) scale(1)" });
+                        setCssProps(largeImg, { opacity: "1" });
 
                         setTimeout(() => {
-                            largeImg.style.transition = ""; // 还原 CSS 默认 transition
+                            largeImg.style.removeProperty("transition"); // 还原 CSS 默认 transition
                             isAnimating = false;
                         }, ANIM_MS);
                     });
@@ -320,7 +320,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     // setting按钮点击显示/隐藏面板
     settingBtn.onclick = (e) => {
         e.stopPropagation();
-        isPanelOpen() ? closePanel() : openPanel();
+        if (isPanelOpen()) { closePanel(); } else { openPanel(); }
     };
 
     // 点击 wrapper 或 panel 之外时自动关闭（panel 已移至 body，需单独判断）
