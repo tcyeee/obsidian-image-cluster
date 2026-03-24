@@ -118,6 +118,21 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         const largeImg = document.createElement("img");
         largeImg.src = srcList?.[curIdx] || src;
         largeImg.classList.add("plugin-image-large");
+
+        // 长截图自适应：高宽比 > 2 时切换为可滚动模式，以宽度为基准展示
+        const applyTallMode = () => {
+            const ratio = largeImg.naturalHeight / largeImg.naturalWidth;
+            if (ratio > 2.0) {
+                largeImg.classList.add("plugin-image-large--tall");
+                overlay.classList.add("plugin-image-overlay--scrollable");
+            } else {
+                largeImg.classList.remove("plugin-image-large--tall");
+                overlay.classList.remove("plugin-image-overlay--scrollable");
+            }
+        };
+        largeImg.addEventListener("load", applyTallMode);
+        if (largeImg.complete && largeImg.naturalWidth > 0) applyTallMode();
+
         const prevBtn = document.createElement("button");
         prevBtn.textContent = "←";
         prevBtn.className = "plugin-image-nav-btn plugin-image-nav-btn-prev";
@@ -133,9 +148,10 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             setCssProps(largeImg, { transform: `translate(${tx}px, ${ty}px) scale(${scale})` });
         };
 
-        // 滚轮缩放
+        // 滚轮缩放（passive: false 使 preventDefault 生效，阻止 overlay 滚动）
         largeImg.addEventListener("wheel", e => {
             e.preventDefault();
+            e.stopPropagation();
             const delta = e.deltaY;
             if (delta < 0) {
                 scale = Math.min(config.PREVIEW_MAX_SCALE, scale + 0.1);
@@ -143,7 +159,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
                 scale = Math.max(config.PREVIEW_MIN_SCALE, scale - 0.1);
             }
             applyTransform();
-        });
+        }, { passive: false });
 
         // 拖拽平移
         let isDragging = false;
@@ -200,6 +216,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
                 curIdx = newIdx;
                 largeImg.src = srcList[curIdx];
                 scale = 1; tx = 0; ty = 0;
+                overlay.scrollTop = 0;
 
                 setCssProps(largeImg, { transition: "none" });
                 setCssProps(largeImg, { transform: `translate(${enterX}px, 0) scale(1)` });

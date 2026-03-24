@@ -122,6 +122,20 @@
   cursor: grab;
 }
 
+/* 长截图（高宽比 > 2）预览模式：以宽度为基准展示，overlay 可垂直滚动 */
+.plugin-image-overlay--scrollable {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 5vh 0;
+    overflow-anchor: none; /* 禁止浏览器在缩放时自动调整滚动位置 */
+}
+
+.plugin-image-large--tall {
+    max-height: none;
+    max-width: 70%;
+    transform-origin: top center; /* 缩放锚点固定在顶部，防止放大时画面向中间漂移 */
+}
+
 .plugin-image-border-large {
 	border: 1px solid #ccc;
 }
