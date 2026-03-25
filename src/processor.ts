@@ -203,6 +203,13 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         // ---- 触摸事件（移动端） ----
         // 单指拖拽平移 + 双指捏合缩放
         let lastPinchDist = 0;
+        // 追踪捏合手势是否正在进行：捏合期间及最后一根手指抬起时均需屏蔽关闭预览
+        let isPinching = false;
+
+        // 任意位置的 touchstart：有 2 根以上手指时，标记为捏合中
+        overlay.addEventListener("touchstart", e => {
+            if (e.touches.length >= 2) isPinching = true;
+        }, { passive: true });
 
         largeImg.addEventListener("touchstart", e => {
             if (e.touches.length !== 1) return;
@@ -216,7 +223,8 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         overlay.addEventListener("touchmove", e => {
             e.preventDefault(); // 阻止 overlay 自身滚动
             if (e.touches.length === 2) {
-                // 双指捏合缩放
+                // 双指捏合缩放（手指可以在 overlay 任意位置）
+                isPinching = true;
                 const dist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY,
@@ -237,6 +245,14 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
 
         overlay.addEventListener("touchend", e => {
             if (e.touches.length < 2) lastPinchDist = 0;
+
+            // 捏合手势结束：等所有手指都抬起后才重置标志，
+            // 期间（含最后一根手指抬起的这一帧）一律不执行关闭，避免缩放与关闭冲突。
+            if (isPinching) {
+                if (e.touches.length === 0) isPinching = false;
+                return;
+            }
+
             if (isDragging) {
                 isDragging = false;
                 return; // 拖拽结束，不关闭
