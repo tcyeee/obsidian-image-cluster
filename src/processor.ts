@@ -157,12 +157,17 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         largeImg.addEventListener("wheel", e => {
             e.preventDefault();
             e.stopPropagation();
-            const delta = e.deltaY;
-            if (delta < 0) {
-                scale = Math.min(config.PREVIEW_MAX_SCALE, scale + 0.1);
+            const oldScale = scale;
+            if (e.deltaY < 0) {
+                scale = Math.round(Math.min(config.PREVIEW_MAX_SCALE, scale + 0.1) * 100) / 100;
             } else {
-                scale = Math.max(config.PREVIEW_MIN_SCALE, scale - 0.1);
+                scale = Math.round(Math.max(config.PREVIEW_MIN_SCALE, scale - 0.1) * 100) / 100;
             }
+            // 以鼠标位置为缩放中心，调整平移量使光标下的内容不跑偏
+            const factor = scale / oldScale;
+            const rect = largeImg.getBoundingClientRect();
+            tx += (e.clientX - (rect.left + rect.width / 2)) * (1 - factor);
+            ty += (e.clientY - (rect.top + rect.height / 2)) * (1 - factor);
             applyTransform();
         }, { passive: false });
 
@@ -177,7 +182,9 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             wasDragged = false;
             dragStartX = e.clientX - tx;
             dragStartY = e.clientY - ty;
-            setCssProps(largeImg, { cursor: "grabbing" });
+            // 拖拽期间禁用 CSS transition，防止每帧 transform 更新都触发动画，
+            // 导致动画从中间位置跳变（在边缘处表现为闪烁）
+            setCssProps(largeImg, { cursor: "grabbing", transition: "none" });
             e.preventDefault();
         });
 
@@ -192,12 +199,17 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         overlay.addEventListener("mouseup", () => {
             if (isDragging) {
                 isDragging = false;
+                // 恢复 CSS 默认 transition（移除 inline 覆盖即可）
+                largeImg.style.removeProperty("transition");
                 setCssProps(largeImg, { cursor: "grab" });
             }
         });
 
         overlay.addEventListener("mouseleave", () => {
-            isDragging = false;
+            if (isDragging) {
+                isDragging = false;
+                largeImg.style.removeProperty("transition");
+            }
         });
 
         // ---- 触摸事件（移动端） ----
@@ -217,6 +229,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             wasDragged = false;
             dragStartX = e.touches[0].clientX - tx;
             dragStartY = e.touches[0].clientY - ty;
+            setCssProps(largeImg, { transition: "none" }); // 拖拽期间禁用 transition，防止闪烁
             e.preventDefault(); // 阻止滚动
         }, { passive: false });
 
@@ -230,7 +243,15 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
                     e.touches[0].clientY - e.touches[1].clientY,
                 );
                 if (lastPinchDist > 0) {
+                    const oldScale = scale;
                     scale = Math.min(config.PREVIEW_MAX_SCALE, Math.max(config.PREVIEW_MIN_SCALE, scale * (dist / lastPinchDist)));
+                    // 以两指中点为缩放中心，调整平移量
+                    const factor = scale / oldScale;
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    const rect = largeImg.getBoundingClientRect();
+                    tx += (midX - (rect.left + rect.width / 2)) * (1 - factor);
+                    ty += (midY - (rect.top + rect.height / 2)) * (1 - factor);
                     applyTransform();
                 }
                 lastPinchDist = dist;
@@ -255,6 +276,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
 
             if (isDragging) {
                 isDragging = false;
+                largeImg.style.removeProperty("transition"); // 恢复 CSS 默认 transition
                 return; // 拖拽结束，不关闭
             }
             if (wasDragged) {
