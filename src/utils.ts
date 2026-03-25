@@ -263,8 +263,8 @@ export function md5(input: string): string {
 
   function convertToWordArray(str: string): number[] {
     const lWordArray: number[] = [];
-    let lMessageLength = str.length;
-    let lNumberOfWordsTemp1 = lMessageLength + 8;
+    const lMessageLength = str.length;
+    const lNumberOfWordsTemp1 = lMessageLength + 8;
     const lNumberOfWordsTemp2 = (lNumberOfWordsTemp1 - (lNumberOfWordsTemp1 % 64)) / 64;
     const lNumberOfWords = (lNumberOfWordsTemp2 + 1) * 16;
     let lBytePosition = 0;

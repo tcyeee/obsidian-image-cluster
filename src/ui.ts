@@ -82,7 +82,7 @@ function createSizeRadio(sizeKey: "small" | "medium" | "large", labelText: strin
     label.appendChild(input);
     label.appendChild(textSpan);
     return label;
-};
+}
 
 /**
  * 创建 setting 面板中的 checkbox 元素
@@ -118,7 +118,7 @@ function createSettingCheckbox(settingKey: "border" | "shadow" | "hidden" | "lim
     label.appendChild(switchWrapper);
 
     return label;
-};
+}
 
 
 /**

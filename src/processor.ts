@@ -28,7 +28,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
             const rawPath = mdMatch ? mdMatch[1] : wikiMatch ? wikiMatch[1].trim() : null;
             if (rawPath !== null) {
                 const decodedPath = decodeURIComponent(rawPath);
-                let file =
+                const file =
                     plugin.app.metadataCache.getFirstLinkpathDest(decodedPath, ctx.sourcePath) ??
                     plugin.app.vault.getFiles().find((f: TFile) => f.path.endsWith(decodedPath));
                 if (file) {
@@ -115,7 +115,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
     img.style.setProperty("--plugin-image-size", `${option.size}px`);
     img.style.setProperty("--plugin-image-radius", `${option.radius}px`);
 
-    img.addEventListener("click", () => {
+    const openOverlay = () => {
         let curIdx = idx || 0;
         const overlay = document.createElement("div");
         overlay.classList.add("plugin-image-overlay");
@@ -166,7 +166,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             applyTransform();
         }, { passive: false });
 
-        // 拖拽平移
+        // 拖拽平移（鼠标，桌面端）
         let isDragging = false;
         let wasDragged = false; // 用于区分拖拽和点击，避免拖拽结束时误关闭预览
         let dragStartX = 0;
@@ -200,6 +200,58 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             isDragging = false;
         });
 
+        // ---- 触摸事件（移动端） ----
+        // 单指拖拽平移 + 双指捏合缩放
+        let lastPinchDist = 0;
+
+        largeImg.addEventListener("touchstart", e => {
+            if (e.touches.length !== 1) return;
+            isDragging = true;
+            wasDragged = false;
+            dragStartX = e.touches[0].clientX - tx;
+            dragStartY = e.touches[0].clientY - ty;
+            e.preventDefault(); // 阻止滚动
+        }, { passive: false });
+
+        overlay.addEventListener("touchmove", e => {
+            e.preventDefault(); // 阻止 overlay 自身滚动
+            if (e.touches.length === 2) {
+                // 双指捏合缩放
+                const dist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY,
+                );
+                if (lastPinchDist > 0) {
+                    scale = Math.min(config.PREVIEW_MAX_SCALE, Math.max(config.PREVIEW_MIN_SCALE, scale * (dist / lastPinchDist)));
+                    applyTransform();
+                }
+                lastPinchDist = dist;
+                isDragging = false; // 双指期间取消单指拖拽
+            } else if (e.touches.length === 1 && isDragging) {
+                tx = e.touches[0].clientX - dragStartX;
+                ty = e.touches[0].clientY - dragStartY;
+                wasDragged = true;
+                applyTransform();
+            }
+        }, { passive: false });
+
+        overlay.addEventListener("touchend", e => {
+            if (e.touches.length < 2) lastPinchDist = 0;
+            if (isDragging) {
+                isDragging = false;
+                return; // 拖拽结束，不关闭
+            }
+            if (wasDragged) {
+                wasDragged = false;
+                return; // 拖拽后抬手，不关闭
+            }
+            // 点击背景（非图片区域）关闭预览
+            if (e.target === overlay) {
+                e.preventDefault();
+                closePreview();
+            }
+        });
+
         // 切换图片函数（带方向滑动动画）
         const ANIM_MS = 220;
         let isAnimating = false;
@@ -208,8 +260,8 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             if (!srcList || isAnimating) return;
             isAnimating = true;
 
-            const exitX  = direction === "next" ? -140 : 140;  // 当前图片滑出方向
-            const enterX = direction === "next" ?  140 : -140; // 新图片进入起始位置
+            const exitX = direction === "next" ? -140 : 140;  // 当前图片滑出方向
+            const enterX = direction === "next" ? 140 : -140; // 新图片进入起始位置
 
             // 阶段一：当前图片滑出 + 淡出
             setCssProps(largeImg, { transition: `transform ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease` });
@@ -267,6 +319,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         requestAnimationFrame(() => {
             overlay.classList.add("plugin-image-overlay-visible");
         });
+        // 鼠标点击背景关闭（桌面端）
         overlay.addEventListener("click", (event) => {
             // 拖拽结束时会触发 click，用 wasDragged 过滤掉
             if (wasDragged) { wasDragged = false; return; }
@@ -290,7 +343,28 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             setTimeout(() => { overlay.remove() }, 300);
             document.removeEventListener("keydown", handleKeydown);
         }
-    });
+    };
+
+    // 桌面端：鼠标点击打开预览
+    img.addEventListener("click", openOverlay);
+    // 移动端：touchend 打开预览
+    // 记录 touchstart 坐标，在 touchend 时判断位移是否超过阈值：
+    // 超过则认为是滑动手势，不打开预览，避免页面滚动时误触图片。
+    let touchStartX = 0;
+    let touchStartY = 0;
+    img.addEventListener("touchstart", e => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    img.addEventListener("touchend", e => {
+        const dx = Math.abs(e.changedTouches[0].clientX - touchStartX);
+        const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+        if (dx > 10 || dy > 10) return; // 位移过大，判定为滑动，忽略
+        e.stopPropagation();
+        e.preventDefault();
+        openOverlay();
+    }, { passive: false });
+
     return img;
 }
 
