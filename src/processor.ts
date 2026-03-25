@@ -5,6 +5,9 @@ import { SettingOptions as SettingOptions, SettingPanelDom } from "./domain";
 import { MarkdownPostProcessorContext, TFile, normalizePath } from "obsidian";
 import { config } from "./config";
 
+// 关联每个图片容器与其设置面板中的 limit 复选框，供蒙版点击时直接同步 UI 状态
+const containerLimitCheckboxMap = new WeakMap<HTMLDivElement, HTMLInputElement>();
+
 /**
  * 自动解析imgs代码块
  * 当解析到imgs代码块时，会自动创建一个图片容器，并应用对应的配置。
@@ -18,10 +21,13 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
         // 用于大图预览的原图地址列表
         const srcList: string[] = [];
         for (const line of lines) {
-            const match = /!\[.*?\]\((.*?)\)/.exec(line.trim());
-            if (match) {
-                const linkPath = match[1];
-                const decodedPath = decodeURIComponent(linkPath);
+            const trimmedLine = line.trim();
+            // 同时支持标准 Markdown 格式 ![alt](path) 和 Obsidian 内部链接 ![[path]]
+            const mdMatch = /!\[.*?\]\((.*?)\)/.exec(trimmedLine);
+            const wikiMatch = /!\[\[([^\]|#]+?)(?:[|#][^\]]*)?\]\]/.exec(trimmedLine);
+            const rawPath = mdMatch ? mdMatch[1] : wikiMatch ? wikiMatch[1].trim() : null;
+            if (rawPath !== null) {
+                const decodedPath = decodeURIComponent(rawPath);
                 let file =
                     plugin.app.metadataCache.getFirstLinkpathDest(decodedPath, ctx.sourcePath) ??
                     plugin.app.vault.getFiles().find((f: TFile) => f.path.endsWith(decodedPath));
@@ -40,7 +46,6 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     const thumbPath = normalizePath(`${config.THUMBNAIL_PATH}${thumbKey}`);
                     // 缩略图文件对象
 
-                    // 这里拿到的thumbFile是null,thumbPath是.cache/1.png,我检查了在Vault根目录的.cache目录下确实有1.png文件
                     const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
                     // 缩略图资源路径
                     const thumbSrc = thumbFile instanceof TFile
@@ -317,8 +322,10 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     // setting 面板由 setupSettingPanel 创建；
     // 挂到 document.body 以彻底脱离 CodeMirror 渲染树，
     // 避免祖先元素的 transform/will-change 干扰 position:fixed 定位
-    const { panel, persistIfNeeded } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName);
+    const { panel, persistIfNeeded, limitCheckbox } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName);
     document.body.appendChild(panel);
+    // 关联 limitCheckbox，供蒙版点击时同步 UI 状态
+    if (limitCheckbox) containerLimitCheckboxMap.set(container, limitCheckbox);
 
     const isPanelOpen = () => panel.classList.contains("plugin-image-setting-panel--open");
     const openPanel = () => {
@@ -341,12 +348,25 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     };
 
     // 点击 wrapper 或 panel 之外时自动关闭（panel 已移至 body，需单独判断）
+    // 使用 AbortController 以便在容器销毁时移除监听器，避免泄漏
+    const clickAbortCtrl = new AbortController();
     document.addEventListener("click", (e: MouseEvent) => {
+        // 容器已从 DOM 中移除时，顺带清理 panel 和监听器
+        if (!container.isConnected) {
+            panel.remove();
+            clickAbortCtrl.abort();
+            return;
+        }
         const target = e.target;
         if (!(target instanceof Node)) return;
         if (!settingWrapper.contains(target) && !panel.contains(target)) {
             closePanel();
         }
+    }, { signal: clickAbortCtrl.signal });
+    // 插件卸载时清理挂在 document.body 上的浮动面板和事件监听器
+    plugin.register(() => {
+        panel.remove();
+        clickAbortCtrl.abort();
     });
 
     // 安全区域：面板顶部透明块，覆盖按钮与面板之间的间隙，防止鼠标经过间隙时面板提前消失
@@ -389,9 +409,10 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
  * @param container - 图片容器
  * @param sizeGroupName - 尺寸单选组名
  * @returns 设置面板
- *   { panel: HTMLDivElement; persistIfNeeded: () => void }
+ *   { panel: HTMLDivElement; persistIfNeeded: () => void; limitCheckbox: HTMLInputElement | null }
  *     panel: 设置面板
  *     persistIfNeeded: 持久化函数 （在需要时将更改写回到对应 Markdown 文件）
+ *     limitCheckbox: limit 复选框元素（供外部同步 UI 状态）
  */
 function setupSettingPanel(
     option: SettingOptions,
@@ -400,7 +421,7 @@ function setupSettingPanel(
     el: HTMLElement,
     container: HTMLDivElement,
     sizeGroupName: string,
-): { panel: HTMLDivElement; persistIfNeeded: () => void } {
+): { panel: HTMLDivElement; persistIfNeeded: () => void; limitCheckbox: HTMLInputElement | null } {
     const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, sizeRadios }: SettingPanelDom = createSettingPanelDom(sizeGroupName);
 
     // 注意：panel 的 DOM 挂载由调用方（createContainer）负责
@@ -488,7 +509,7 @@ function setupSettingPanel(
         });
     });
 
-    return { panel, persistIfNeeded };
+    return { panel, persistIfNeeded, limitCheckbox };
 }
 
 /**
@@ -684,17 +705,19 @@ function applyLimitRows(container: HTMLDivElement, option: SettingOptions, onLim
                 text.textContent = `+ ${remainingCount}`;
                 mask.appendChild(text);
 
-                // 点击蒙版：关闭 limit（等价于勾掉 setting 面板中的 limit 复选框），并在需要时立刻持久化。
+                // 点击蒙版：关闭 limit，同步 UI 复选框，并持久化。
+                // 注意：setting panel 挂在 document.body 而非 container 内，
+                // 因此通过 WeakMap 直接拿到 limitCheckbox 引用来同步状态，
+                // 而不是用 container.querySelector（那样永远找不到）。
                 mask.addEventListener("click", (event) => {
                     event.stopPropagation();
                     event.preventDefault();
-                    const limitInput = container.querySelector<HTMLInputElement>('input[data-setting="limit"]');
-                    if (limitInput && limitInput.checked) {
-                        limitInput.checked = false;
-                        limitInput.dispatchEvent(new Event("change", { bubbles: true }));
-                    }
-                    // 如果调用方提供了持久化回调（例如设置面板内），这里主动触发一次；
-                    // 对于没有配置持久化回调的场景（纯预览、不需要写回的情况），则不会有任何副作用。
+                    option.limit = false;
+                    // 同步设置面板中的复选框 UI
+                    const limitCheckbox = containerLimitCheckboxMap.get(container);
+                    if (limitCheckbox) limitCheckbox.checked = false;
+                    // 重新应用配置，移除蒙版、显示所有图片
+                    applySettingsToContainer(container, option);
                     if (onLimitTogglePersist) onLimitTogglePersist();
                 });
 

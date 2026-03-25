@@ -30,7 +30,7 @@ export function getImageSyntaxes(line: string): string {
   while ((match = imageRegex.exec(line)) !== null) {
     imageSyntaxes.push(match[0]);
   }
-  return imageSyntaxes.length > 0 ? imageSyntaxes.join("\n") : line;;
+  return imageSyntaxes.length > 0 ? imageSyntaxes.join("\n") : line;
 }
 
 /**

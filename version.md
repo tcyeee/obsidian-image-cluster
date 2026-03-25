@@ -1,5 +1,19 @@
 # obsidian-image-cluster 更新日志
 
+## 1.3.2 · 2026-03-25
+
+**What's new:**
+- Fixed "+N" mask click not dismissing the limit — images now correctly expand when tapped
+- Added support for Obsidian wiki-link syntax (`![[image.png]]`) inside `imgs` code blocks
+- Fixed memory leaks: floating setting panels and document click listeners are now properly cleaned up on re-render and plugin unload
+
+**更新内容：**
+- 修复点击「+N」蒙版无法关闭行数限制的问题
+- 支持在 `imgs` 代码块中使用 Obsidian 内部链接格式（`![[image.png]]`）
+- 修复内存泄漏：设置面板和 document 事件监听器现在会在重新渲染及插件卸载时正确清理
+
+---
+
 ## 1.3.1 · 2026-03-25
 
 **What's new:**
