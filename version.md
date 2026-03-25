@@ -30,7 +30,6 @@
 1. Download `main.js`, `manifest.json`, and `styles.css` from the latest release.
 2. Create the folder `<Vault>/.obsidian/plugins/obsidian-image-cluster/` and place the three files inside.
 3. In Obsidian, go to **Settings → Community plugins → Installed plugins** and enable **Image Cluster**.
-4. Make sure the official **Bases** core plugin is also enabled.
 
 ---
 
