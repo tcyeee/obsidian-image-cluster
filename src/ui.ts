@@ -1,3 +1,4 @@
+import { setIcon } from "obsidian";
 import { SettingOptions, SettingPanelDom } from "./domain";
 
 /**
@@ -16,9 +17,7 @@ export function createSettingButtonElement(): HTMLDivElement {
     const settingBtn = createDiv({ cls: "plugin-image-setting-btn-container clickable-icon" });
     settingBtn.setAttribute("aria-label", "Image group settings");
 
-    const settingIcon = createDiv({ cls: "icon--settings" });
-
-    settingBtn.appendChild(settingIcon);
+    setIcon(settingBtn, "sliders-horizontal");
 
     return settingBtn;
 }

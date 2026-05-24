@@ -28,9 +28,10 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
             const rawPath = mdMatch ? mdMatch[1] : wikiMatch ? wikiMatch[1].trim() : null;
             if (rawPath !== null) {
                 const decodedPath = decodeURIComponent(rawPath);
+                const abstractFile = plugin.app.vault.getAbstractFileByPath(decodedPath);
                 const file =
                     plugin.app.metadataCache.getFirstLinkpathDest(decodedPath, ctx.sourcePath) ??
-                    plugin.app.vault.getFiles().find((f: TFile) => f.path.endsWith(decodedPath));
+                    (abstractFile instanceof TFile ? abstractFile : null);
                 if (file) {
                     // 原图 resource 路径（用于点击后的大图预览）
                     const originalSrc = plugin.app.vault.getResourcePath(file);

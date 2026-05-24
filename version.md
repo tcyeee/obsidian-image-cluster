@@ -1,5 +1,14 @@
 # obsidian-image-cluster 更新日志
 
+## 1.3.4 · 2026-05-24
+
+- Fixed image file lookup to use `getAbstractFileByPath` instead of scanning all vault files
+- Fixed settings icon to use Obsidian's built-in `setIcon` API for proper theme support
+- 修复图片文件查找：改用 `getAbstractFileByPath`，避免全量扫描 vault 文件
+- 修复设置图标：改用 Obsidian 内置 `setIcon` API，正确适配主题配色
+
+---
+
 ## 1.3.3 · 2026-05-24
 
 **What's new:**
