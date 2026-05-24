@@ -1,5 +1,19 @@
 # obsidian-image-cluster 更新日志
 
+## 1.3.3 · 2026-05-24
+
+**What's new:**
+- Migrated build toolchain from npm to pnpm
+- Refactored all DOM creation to use Obsidian's built-in helpers (`createDiv`, `createEl`, `createSpan`) instead of `document.createElement`
+- Replaced global `window.setTimeout` and `document.body` with `activeWindow` and `activeDocument` for proper multi-window support
+
+**更新内容：**
+- 构建工具链从 npm 迁移至 pnpm
+- 将所有 DOM 创建重构为使用 Obsidian 内置辅助函数（`createDiv`、`createEl`、`createSpan`）替代 `document.createElement`
+- 将全局 `window.setTimeout` 和 `document.body` 替换为 `activeWindow` 和 `activeDocument`，正确支持多窗口场景
+
+---
+
 ## 1.3.2 · 2026-03-26
 
 **What's new:**
