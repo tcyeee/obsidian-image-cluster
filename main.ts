@@ -18,7 +18,7 @@ export default class ImgRowPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<ImgRowPluginSettings>);
 		// 将已保存的设置同步写入 config，使默认值即刻生效
 		applySettingsToConfig(this.settings);
 	}

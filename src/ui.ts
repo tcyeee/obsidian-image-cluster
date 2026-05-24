@@ -4,8 +4,7 @@ import { SettingOptions, SettingPanelDom } from "./domain";
  * 创建图片容器元素，设置基础类名和间距变量。
  */
 export function createImageContainerElement(option: SettingOptions): HTMLDivElement {
-    const container = document.createElement("div");
-    container.classList.add("plugin-image-container");
+    const container = createDiv({ cls: "plugin-image-container" });
     container.style.setProperty("--plugin-container-gap", `${option.gap}px`);
     return container;
 }
@@ -14,12 +13,10 @@ export function createImageContainerElement(option: SettingOptions): HTMLDivElem
  * 创建右上角的 setting 按钮（仅图标，无事件绑定）。
  */
 export function createSettingButtonElement(): HTMLDivElement {
-    const settingBtn = document.createElement("div");
-    settingBtn.className = "plugin-image-setting-btn-container clickable-icon";
+    const settingBtn = createDiv({ cls: "plugin-image-setting-btn-container clickable-icon" });
     settingBtn.setAttribute("aria-label", "Image group settings");
 
-    const settingIcon = document.createElement("div");
-    settingIcon.className = "icon--settings";
+    const settingIcon = createDiv({ cls: "icon--settings" });
 
     settingBtn.appendChild(settingIcon);
 
@@ -32,21 +29,18 @@ export function createSettingButtonElement(): HTMLDivElement {
  */
 export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
     // 尺寸选项分组（滑块样式的按钮组）
-    const sizeGroup = document.createElement("div");
-    sizeGroup.className = "plugin-image-setting-size-group";
+    const sizeGroup = createDiv({ cls: "plugin-image-setting-size-group" });
     sizeGroup.dataset.size = "medium";
 
     // 背景滑块条
-    const slider = document.createElement("div");
-    slider.className = "plugin-image-setting-size-slider";
+    const slider = createDiv({ cls: "plugin-image-setting-size-slider" });
     sizeGroup.appendChild(slider);
 
     sizeGroup.appendChild(createSizeRadio("small", "S", sizeGroupName));
     sizeGroup.appendChild(createSizeRadio("medium", "M", sizeGroupName));
     sizeGroup.appendChild(createSizeRadio("large", "L", sizeGroupName));
 
-    const panel = document.createElement("div");
-    panel.className = "plugin-image-setting-panel";
+    const panel = createDiv({ cls: "plugin-image-setting-panel" });
     panel.appendChild(sizeGroup);
     panel.appendChild(createSettingCheckbox("border", "border"));
     panel.appendChild(createSettingCheckbox("shadow", "shadow"));
@@ -66,18 +60,13 @@ export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
 
 // 尺寸选项单选（内部仍然使用 radio，外观是按钮组）
 function createSizeRadio(sizeKey: "small" | "medium" | "large", labelText: string, sizeGroupName: string) {
-    const label = document.createElement("label");
-    label.className = "plugin-image-setting-size-radio";
+    const label = createEl("label", { cls: "plugin-image-setting-size-radio" });
 
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.className = "plugin-image-setting-size-radio-input";
+    const input = createEl("input", { cls: "plugin-image-setting-size-radio-input", type: "radio" });
     input.dataset.size = sizeKey;
     input.name = sizeGroupName;
 
-    const textSpan = document.createElement("span");
-    textSpan.className = "plugin-image-setting-size-radio-text";
-    textSpan.textContent = labelText;
+    const textSpan = createSpan({ cls: "plugin-image-setting-size-radio-text", text: labelText });
 
     label.appendChild(input);
     label.appendChild(textSpan);
@@ -93,23 +82,16 @@ function createSizeRadio(sizeKey: "small" | "medium" | "large", labelText: strin
  * @returns 
  */
 function createSettingCheckbox(settingKey: "border" | "shadow" | "hidden" | "limit", text: string) {
-    const label = document.createElement("label");
-    label.className = "plugin-image-setting-checkbox";
+    const label = createEl("label", { cls: "plugin-image-setting-checkbox" });
 
-    const textSpan = document.createElement("span");
-    textSpan.className = "plugin-image-setting-checkbox-label";
-    textSpan.textContent = text;
+    const textSpan = createSpan({ cls: "plugin-image-setting-checkbox-label", text });
 
-    const switchWrapper = document.createElement("div");
-    switchWrapper.className = "plugin-image-setting-switch";
+    const switchWrapper = createDiv({ cls: "plugin-image-setting-switch" });
 
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.className = "plugin-image-setting-switch-input";
+    const input = createEl("input", { cls: "plugin-image-setting-switch-input", type: "checkbox" });
     input.dataset.setting = settingKey;
 
-    const track = document.createElement("span");
-    track.className = "plugin-image-setting-switch-track";
+    const track = createSpan({ cls: "plugin-image-setting-switch-track" });
 
     switchWrapper.appendChild(input);
     switchWrapper.appendChild(track);
@@ -128,14 +110,11 @@ function createSettingCheckbox(settingKey: "border" | "shadow" | "hidden" | "lim
  * @returns 错误提示元素
  */
 export function createErrorDiv(option: SettingOptions): HTMLDivElement {
-    const errorDiv = document.createElement("div");
-    errorDiv.classList.add("plugin-image-error", "plugin-image");
+    const errorDiv = createDiv({ cls: ["plugin-image-error", "plugin-image"] });
 
-    const icon = document.createElement("div");
-    icon.className = "icon--error-picture";
+    const icon = createDiv({ cls: "icon--error-picture" });
 
-    const text = document.createElement("span");
-    text.textContent = "404";
+    const text = createSpan({ text: "404" });
 
     errorDiv.appendChild(icon);
     errorDiv.appendChild(text);

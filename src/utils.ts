@@ -150,7 +150,7 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
     const sx = (width - cropSize) / 2;
     const sy = (height - cropSize) / 2;
 
-    const canvas = document.createElement("canvas");
+    const canvas = createEl("canvas");
     canvas.width = targetSide;
     canvas.height = targetSide;
     const ctx = canvas.getContext("2d");

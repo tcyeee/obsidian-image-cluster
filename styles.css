@@ -66,7 +66,7 @@
 
 .plugin-image-overlay {
 	position: fixed;
-	top: 0; 
+	top: 0;
 	left: 0;
 	width: 100vw;
 	height: 100vh;
@@ -77,8 +77,6 @@
 	z-index: 9999;
 	opacity: 0;
 	transition: opacity 0.3s ease;
-	/* 新增：让内部按钮绝对定位参照本身容器 */
-	position: fixed;
 }
 .plugin-image-nav-btn {
   width: 48px;
@@ -103,7 +101,7 @@
 }
 .plugin-image-nav-btn:disabled {
     background: rgba(180,180,180,0.5);
-    color: #aaa;
+    color: #aaaaaa;
     cursor: not-allowed;
 }
 .plugin-image-nav-btn-prev { left:32px; }
@@ -137,26 +135,26 @@
 }
 
 .plugin-image-border-large {
-	border: 1px solid #ccc;
+	border: 1px solid #cccccc;
 }
 
 .plugin-image-more-wrapper {
   position: relative;
 }
 
-.plugin-image-row-hidden {
-  display: none !important;
+.workspace .plugin-image-row-hidden {
+  display: none;
 }
 
-.plugin-image-more-mask {
-  pointer-events: all !important ;
+.workspace .plugin-image-more-mask {
+  pointer-events: all;
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: #ffffff;
   font-size: 18px;
   font-weight: 600;
   border-radius: inherit;
@@ -187,7 +185,7 @@
   position: fixed;
   min-width: 160px;
   display: none;
-  background: #fff;
+  background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.13);
   padding: 17px 26px 16px 18px;
@@ -217,7 +215,7 @@
   color: #575757;
 }
 .plugin-image-setting-panel input[type="checkbox"] {
-  accent-color: #888;
+  accent-color: #888888;
 }
 .plugin-image-setting-checkbox-label {
   user-select: none;
@@ -251,7 +249,7 @@
   width: 14px;
   height: 14px;
   border-radius: 999px;
-  background: #fff;
+  background: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transition: transform 0.18s ease;
 }
@@ -292,15 +290,17 @@
 .plugin-image-setting-size-group[data-size="large"] .plugin-image-setting-size-slider {
   transform: translateX(200%);
 }
+.workspace .plugin-image-setting-size-radio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .plugin-image-setting-size-radio {
   position: relative;
   flex: 1 1 0;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
   cursor: pointer;
   font-size: 12.5px;
-  color: #555;
+  color: #555555;
   z-index: 1;
 }
 .plugin-image-setting-size-radio-input {
@@ -317,7 +317,7 @@
   border-radius: 999px;
 }
 .plugin-image-setting-size-radio-input:checked + .plugin-image-setting-size-radio-text {
-  color: #fff;
+  color: #ffffff;
   font-weight: 500;
 }
 

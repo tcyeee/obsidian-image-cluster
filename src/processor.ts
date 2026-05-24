@@ -54,8 +54,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
 
                     // 列表中展示缩略图，点击后仍然使用 srcList 中的原图
                     const imgEl = createImage(option, thumbSrc, srcList, imgIdx);
-                    const wrapper = document.createElement("div");
-                    wrapper.classList.add("plugin-image-wrapper");
+                    const wrapper = createDiv({ cls: "plugin-image-wrapper" });
                     wrapper.dataset.imgLine = line.trim(); // 保存原始 markdown 行，供拖拽排序写回使用
                     wrapper.appendChild(imgEl);
                     container.appendChild(wrapper);
@@ -109,7 +108,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
  * @returns 图片元素
  */
 function createImage(option: SettingOptions, src: string, srcList?: string[], idx?: number): HTMLImageElement {
-    const img = document.createElement("img");
+    const img = createEl("img");
     img.src = src;
     img.classList.add("plugin-image");
     img.style.setProperty("--plugin-image-size", `${option.size}px`);
@@ -117,10 +116,9 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
 
     const openOverlay = () => {
         let curIdx = idx || 0;
-        const overlay = document.createElement("div");
-        overlay.classList.add("plugin-image-overlay");
+        const overlay = createDiv({ cls: "plugin-image-overlay" });
 
-        const largeImg = document.createElement("img");
+        const largeImg = createEl("img");
         largeImg.src = srcList?.[curIdx] || src;
         largeImg.classList.add("plugin-image-large");
 
@@ -138,10 +136,10 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         largeImg.addEventListener("load", applyTallMode);
         if (largeImg.complete && largeImg.naturalWidth > 0) applyTallMode();
 
-        const prevBtn = document.createElement("button");
+        const prevBtn = createEl("button");
         prevBtn.textContent = "←";
         prevBtn.className = "plugin-image-nav-btn plugin-image-nav-btn-prev";
-        const nextBtn = document.createElement("button");
+        const nextBtn = createEl("button");
         nextBtn.textContent = "→";
         nextBtn.className = "plugin-image-nav-btn plugin-image-nav-btn-next";
 
@@ -306,7 +304,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
             setCssProps(largeImg, { transform: `translate(${exitX}px, 0) scale(${scale})` });
             setCssProps(largeImg, { opacity: "0" });
 
-            setTimeout(() => {
+            activeWindow.setTimeout(() => {
                 // 阶段二：切换图源，瞬间移到入场起始位置（不触发 transition）
                 curIdx = newIdx;
                 largeImg.src = srcList[curIdx];
@@ -324,7 +322,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
                         setCssProps(largeImg, { transform: "translate(0, 0) scale(1)" });
                         setCssProps(largeImg, { opacity: "1" });
 
-                        setTimeout(() => {
+                        activeWindow.setTimeout(() => {
                             largeImg.style.removeProperty("transition"); // 还原 CSS 默认 transition
                             isAnimating = false;
                         }, ANIM_MS);
@@ -352,7 +350,7 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
         updateBtnState();
 
         overlay.appendChild(largeImg);
-        document.body.appendChild(overlay);
+        activeDocument.body.appendChild(overlay);
 
         requestAnimationFrame(() => {
             overlay.classList.add("plugin-image-overlay-visible");
@@ -375,11 +373,11 @@ function createImage(option: SettingOptions, src: string, srcList?: string[], id
                 }
             }
         };
-        document.addEventListener("keydown", handleKeydown);
+        activeDocument.addEventListener("keydown", handleKeydown);
         function closePreview() {
             overlay.classList.remove("plugin-image-overlay-visible");
-            setTimeout(() => { overlay.remove() }, 300);
-            document.removeEventListener("keydown", handleKeydown);
+            activeWindow.setTimeout(() => { overlay.remove() }, 300);
+            activeDocument.removeEventListener("keydown", handleKeydown);
         }
     };
 
@@ -421,8 +419,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     const container = createImageContainerElement(option);
 
     // 外层包装：统一承载 setting 按钮 + 面板，便于整体迁移到 .cm-preview-code-block
-    const settingWrapper = document.createElement("div");
-    settingWrapper.className = "plugin-image-setting-outer";
+    const settingWrapper = createDiv({ cls: "plugin-image-setting-outer" });
     container.appendChild(settingWrapper);
 
     const settingBtn = createSettingButtonElement();
@@ -432,10 +429,10 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     const sizeGroupName = `imgs-size-${Math.random().toString(36).slice(2, 8)}`;
 
     // setting 面板由 setupSettingPanel 创建；
-    // 挂到 document.body 以彻底脱离 CodeMirror 渲染树，
+    // 挂到 activeDocument.body 以彻底脱离 CodeMirror 渲染树，
     // 避免祖先元素的 transform/will-change 干扰 position:fixed 定位
     const { panel, persistIfNeeded, limitCheckbox } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName);
-    document.body.appendChild(panel);
+    activeDocument.body.appendChild(panel);
     // 关联 limitCheckbox，供蒙版点击时同步 UI 状态
     if (limitCheckbox) containerLimitCheckboxMap.set(container, limitCheckbox);
 
@@ -462,7 +459,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     // 点击 wrapper 或 panel 之外时自动关闭（panel 已移至 body，需单独判断）
     // 使用 AbortController 以便在容器销毁时移除监听器，避免泄漏
     const clickAbortCtrl = new AbortController();
-    document.addEventListener("click", (e: MouseEvent) => {
+    activeDocument.addEventListener("click", (e: MouseEvent) => {
         // 容器已从 DOM 中移除时，顺带清理 panel 和监听器
         if (!container.isConnected) {
             panel.remove();
@@ -482,8 +479,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     });
 
     // 安全区域：面板顶部透明块，覆盖按钮与面板之间的间隙，防止鼠标经过间隙时面板提前消失
-    const safeZone = document.createElement("div");
-    safeZone.classList.add("plugin-image-panel-safe-zone");
+    const safeZone = createDiv({ cls: "plugin-image-panel-safe-zone" });
     panel.appendChild(safeZone);
 
     // 鼠标移入/移出图片容器：控制阅读模式下按钮的可见性
@@ -745,7 +741,7 @@ function applyLimitRows(container: HTMLDivElement, option: SettingOptions, onLim
         // 如果容器还没有正确布局（宽度为 0），稍后重试一次
         if (container.offsetWidth === 0 && retryCount < config.LIMIT_MAX_RETRY) {
             retryCount++;
-            setTimeout(runLimit, config.LIMIT_DELAY);
+            activeWindow.setTimeout(runLimit, config.LIMIT_DELAY);
             return;
         }
 
@@ -810,11 +806,8 @@ function applyLimitRows(container: HTMLDivElement, option: SettingOptions, onLim
                 el.classList.remove("plugin-image-row-hidden");
                 el.classList.add("plugin-image-more-wrapper");
 
-                const mask = document.createElement("div");
-                mask.className = "plugin-image-more-mask";
-                const text = document.createElement("span");
-                text.className = "plugin-image-more-text";
-                text.textContent = `+ ${remainingCount}`;
+                const mask = createDiv({ cls: "plugin-image-more-mask" });
+                const text = createSpan({ cls: "plugin-image-more-text", text: `+ ${remainingCount}` });
                 mask.appendChild(text);
 
                 // 点击蒙版：关闭 limit，同步 UI 复选框，并持久化。
