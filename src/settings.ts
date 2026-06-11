@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import ImgRowPlugin from "main";
-import { config } from "./config";
+import { config } from "./core/config";
 
 export interface ImgRowPluginSettings {
     defaultSize: "small" | "medium" | "large";

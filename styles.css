@@ -33,10 +33,10 @@
   width: var(--plugin-image-size, 220px);
   height: var(--plugin-image-size, 220px);
   padding: 12px;
-  border: 1px solid #ff6b6b;
+  border: 1px solid var(--color-red, #ff6b6b);
   border-radius: 6px;
-  background-color: #ffecec;
-  color: #d8000c;
+  background-color: rgba(var(--color-red-rgb, 216, 0, 12), 0.1);
+  color: var(--color-red, #d8000c);
   box-sizing: border-box;
 }
 
@@ -45,7 +45,7 @@
 }
 
 .plugin-image-border {
-	border: 1px solid #e1e1e1;
+	border: 1px solid var(--background-modifier-border, #e1e1e1);
 }
 
 .plugin-image-wrapper.plugin-image-hidden::after,
@@ -118,6 +118,28 @@
   border-radius: var(--plugin-image-radius, 10px);
   transition: transform 0.2s;
   cursor: grab;
+  /* 平移/缩放由 JS 注入 CSS 变量驱动 */
+  transform: translate(var(--plugin-preview-tx, 0px), var(--plugin-preview-ty, 0px)) scale(var(--plugin-preview-scale, 1));
+}
+
+/* 大图切换动画：时长须与 processor.ts 中的 ANIM_MS（220）保持一致 */
+.plugin-image-large--switching {
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.plugin-image-large--faded {
+  opacity: 0;
+}
+
+/* 切换图源的瞬移阶段：禁用 transition */
+.plugin-image-large--no-anim {
+  transition: none;
+}
+
+/* 拖拽中：禁用 transition 防止每帧 transform 更新触发动画 */
+.plugin-image-large--dragging {
+  transition: none;
+  cursor: grabbing;
 }
 
 /* 长截图（高宽比 > 2）预览模式：以宽度为基准展示，overlay 可垂直滚动 */
@@ -135,7 +157,7 @@
 }
 
 .plugin-image-border-large {
-	border: 1px solid #cccccc;
+	border: 1px solid var(--background-modifier-border, #cccccc);
 }
 
 .plugin-image-more-wrapper {
@@ -180,18 +202,20 @@
 }
 
 /* setting操作面板，仅样式；
-   position: fixed 绕过 CodeMirror overflow 裁剪，top/right 由 JS 动态计算注入 */
+   position: fixed 绕过 CodeMirror overflow 裁剪，top/right 由 JS 动态计算注入 CSS 变量 */
 .plugin-image-setting-panel {
   position: fixed;
+  top: var(--plugin-panel-top, 0);
+  right: var(--plugin-panel-right, 0);
   min-width: 160px;
   display: none;
-  background: #ffffff;
+  background: var(--background-primary);
   border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.13);
   padding: 17px 26px 16px 18px;
   z-index: 110;
   font-size: 15px;
-  color: #464646;
+  color: var(--text-normal);
   flex-direction: column;
   gap: 18px;
 }
@@ -212,10 +236,10 @@
   justify-content: space-between;
   gap: 12px;
   font-size: 13px;
-  color: #575757;
+  color: var(--text-muted);
 }
 .plugin-image-setting-panel input[type="checkbox"] {
-  accent-color: #888888;
+  accent-color: var(--interactive-accent);
 }
 .plugin-image-setting-checkbox-label {
   user-select: none;
@@ -237,7 +261,7 @@
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: rgba(210, 214, 222, 0.9);
+  background: var(--background-modifier-border-hover, rgba(210, 214, 222, 0.9));
   box-shadow: 0 0 0 1px rgba(160, 170, 190, 0.5) inset;
   transition: background 0.18s ease;
 }
@@ -249,12 +273,12 @@
   width: 14px;
   height: 14px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--toggle-thumb-color, #ffffff);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transition: transform 0.18s ease;
 }
 .plugin-image-setting-switch-input:checked + .plugin-image-setting-switch-track {
-  background: #5677c0;
+  background: var(--interactive-accent, #5677c0);
   box-shadow: 0 0 0 1px rgba(40, 90, 180, 0.35);
 }
 .plugin-image-setting-switch-input:checked + .plugin-image-setting-switch-track::before {
@@ -266,7 +290,7 @@
   align-items: center;
   padding: 3px;
   border-radius: 999px;
-  background: rgba(240, 242, 247, 0.9);
+  background: var(--background-secondary, rgba(240, 242, 247, 0.9));
   gap: 0;
 }
 .plugin-image-setting-size-slider {
@@ -276,7 +300,7 @@
   left: 3px;
   width: calc((100% - 6px) / 3);
   border-radius: 999px;
-  background: #5677c0;
+  background: var(--interactive-accent, #5677c0);
   box-shadow: 0 0 0 1px rgba(40, 90, 180, 0.35);
   transition: transform 0.18s ease;
   pointer-events: none;
@@ -300,7 +324,7 @@
   flex: 1 1 0;
   cursor: pointer;
   font-size: 12.5px;
-  color: #555555;
+  color: var(--text-muted);
   z-index: 1;
 }
 .plugin-image-setting-size-radio-input {
@@ -317,7 +341,7 @@
   border-radius: 999px;
 }
 .plugin-image-setting-size-radio-input:checked + .plugin-image-setting-size-radio-text {
-  color: #ffffff;
+  color: var(--text-on-accent, #ffffff);
   font-weight: 500;
 }
 

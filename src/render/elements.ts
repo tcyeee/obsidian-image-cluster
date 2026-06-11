@@ -1,12 +1,13 @@
 import { setIcon } from "obsidian";
-import { SettingOptions, SettingPanelDom } from "./domain";
+import { SettingOptions, SettingPanelDom } from "../core/domain";
+import { setCssProps } from "../core/dom";
 
 /**
  * 创建图片容器元素，设置基础类名和间距变量。
  */
 export function createImageContainerElement(option: SettingOptions): HTMLDivElement {
     const container = createDiv({ cls: "plugin-image-container" });
-    container.style.setProperty("--plugin-container-gap", `${option.gap}px`);
+    setCssProps(container, { "--plugin-container-gap": `${option.gap}px` });
     return container;
 }
 
@@ -117,8 +118,10 @@ export function createErrorDiv(option: SettingOptions): HTMLDivElement {
 
     errorDiv.appendChild(icon);
     errorDiv.appendChild(text);
-    errorDiv.style.setProperty("--plugin-image-size", `${option.size}px`);
-    errorDiv.style.setProperty("--plugin-image-radius", `${option.radius}px`);
+    setCssProps(errorDiv, {
+        "--plugin-image-size": `${option.size}px`,
+        "--plugin-image-radius": `${option.radius}px`,
+    });
     if (option.shadow) errorDiv.classList.add("plugin-image-shadow")
     if (option.border) errorDiv.classList.add("plugin-image-border");
     return errorDiv;

@@ -1,5 +1,5 @@
 import ImgRowPlugin from "main";
-import { getImageSyntaxes, hasMarkdownImage, imgsWrapper } from "./utils";
+import { getImageSyntaxes, hasMarkdownImage, imgsWrapper } from "./markdown/image-syntax";
 
 /**
  * 在编辑器（源模式 / 实时预览）的右键菜单中追加一项： 

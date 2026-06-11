@@ -1,6 +1,6 @@
 import { Plugin } from "obsidian";
-import { addImageLayoutMarkdownProcessor } from "./src/processor";
-import { registerEditorMenu } from "./src/register";
+import { addImageLayoutMarkdownProcessor } from "./src/render/processor";
+import { registerEditorMenu } from "./src/editor-menu";
 import { ImgRowPluginSettings, DEFAULT_SETTINGS, ImgRowSettingTab, applySettingsToConfig } from "./src/settings";
 
 export default class ImgRowPlugin extends Plugin {
