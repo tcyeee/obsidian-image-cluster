@@ -20,7 +20,7 @@ export function registerEditorMenu(that: ImgRowPlugin) {
             menu.addItem((item) => {
                 item
                     .setIcon("image")
-                    .setTitle("Wrap the images into a group")
+                    .setTitle("Group images")
                     .onClick(() => {
                         const wrappedImageSyntax = imgsWrapper(imageSyntax);
                         // 使用生成的 ```imgs 代码块替换当前行的图片语法

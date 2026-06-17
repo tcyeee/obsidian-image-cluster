@@ -44,7 +44,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
         const rect = settingWrapper.getBoundingClientRect();
         setCssProps(panel, {
             "--plugin-panel-top": `${rect.bottom + 4}px`,
-            "--plugin-panel-right": `${window.innerWidth - rect.right}px`,
+            "--plugin-panel-right": `${activeWindow.innerWidth - rect.right}px`,
         });
         panel.classList.add("plugin-image-setting-panel--open");
     };
