@@ -1,5 +1,16 @@
 # obsidian-image-cluster 更新日志
 
+## 1.3.5 · 2026-06-30
+
+- Added automatic thumbnail generation to speed up rendering of image clusters, with concurrency handling
+- Added a left-padding option to adjust the indentation of the image container
+- Improved the editor menu item title and fixed setting panel positioning in popout windows
+- 新增自动生成缩略图功能，加速图片组的渲染，并带有并发控制
+- 新增左侧内边距选项，可调整图片容器的缩进
+- 优化编辑器菜单项标题，修复弹出窗口中设置面板的定位
+
+---
+
 ## 1.3.4 · 2026-05-24
 
 - Fixed image file lookup to use `getAbstractFileByPath` instead of scanning all vault files
