@@ -197,6 +197,7 @@
 	flex-wrap: wrap;
 	padding: 8px 0;
   gap: var(--plugin-container-gap, 10px);
+  margin-left: var(--plugin-container-margin-left, 0);
   position: relative; /* 保证setting按钮绝对定位参照容器 */
   cursor: pointer; /* 覆盖编辑模式下 CodeMirror 的文本光标 */
 }
