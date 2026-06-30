@@ -97,6 +97,9 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                 }
                 // 编辑模式下启用图片拖拽排序
                 enableDragSort(container, plugin, ctx, el);
+            } else if (settingWrapper) {
+                // 阅读模式（非 Live Preview）：不展示操作按钮，直接移除 setting wrapper
+                settingWrapper.remove();
             }
         });
     });

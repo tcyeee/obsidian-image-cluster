@@ -1,5 +1,6 @@
 import ImgRowPlugin from "main";
-import { getImageSyntaxes, hasMarkdownImage, imgsWrapper } from "./markdown/image-syntax";
+import { getImageSyntaxes, hasMarkdownImage, imgsWrapper, isListLine } from "./markdown/image-syntax";
+import { config } from "./core/config";
 
 /**
  * 在编辑器（源模式 / 实时预览）的右键菜单中追加一项： 
@@ -22,9 +23,11 @@ export function registerEditorMenu(that: ImgRowPlugin) {
                     .setIcon("image")
                     .setTitle("Group images")
                     .onClick(() => {
-                        const wrappedImageSyntax = imgsWrapper(imageSyntax);
-                        // 使用生成的 ```imgs 代码块替换当前行的图片语法
                         const lineNo = cursor.line;
+                        const prevLine = lineNo > 0 ? (editor.getLine(lineNo - 1) ?? "") : "";
+                        const paddingLeft = isListLine(prevLine) ? config.LIST_INDENT_PX : 0;
+                        const wrappedImageSyntax = imgsWrapper(imageSyntax, paddingLeft);
+                        // 使用生成的 ```imgs 代码块替换当前行的图片语法
                         editor.replaceRange(
                             wrappedImageSyntax,
                             { line: lineNo, ch: 0 },

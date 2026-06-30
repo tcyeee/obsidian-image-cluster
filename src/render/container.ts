@@ -135,7 +135,7 @@ function setupSettingPanel(
     container: HTMLDivElement,
     sizeGroupName: string,
 ): { panel: HTMLDivElement; persistIfNeeded: () => void; limitCheckbox: HTMLInputElement | null } {
-    const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, sizeRadios }: SettingPanelDom = createSettingPanelDom(sizeGroupName);
+    const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios }: SettingPanelDom = createSettingPanelDom(sizeGroupName);
 
     // 注意：panel 的 DOM 挂载由调用方（createContainer）负责
 
@@ -144,6 +144,9 @@ function setupSettingPanel(
     if (shadowCheckbox) shadowCheckbox.checked = option.shadow;
     if (hiddenCheckbox) hiddenCheckbox.checked = option.hidden;
     if (limitCheckbox) limitCheckbox.checked = option.limit;
+    if (paddingLeftCheckbox) {
+        paddingLeftCheckbox.checked = option.paddingLeft > 0;
+    }
     // 根据当前 size 推断 S / M / L
     const currentSize = option.size;
     const pickSizeLabel = currentSize <= config.SMALL_SIZE ? "small" : currentSize <= config.MEDIUM_SIZE ? "medium" : "large";
@@ -189,6 +192,12 @@ function setupSettingPanel(
             void persistOptionsToSource(option, plugin, ctx, el);
         });
         // 对于通过设置面板主动修改 limit 的场景，仍然沿用「关闭面板时统一写回」的逻辑。
+        hasPendingChanges = true;
+    });
+    paddingLeftCheckbox?.addEventListener("change", () => {
+        // 复选框作为开关：勾选 → 默认列表缩进像素；取消 → 0
+        option.paddingLeft = paddingLeftCheckbox.checked ? config.LIST_INDENT_PX : 0;
+        applySettingsToContainer(container, option);
         hasPendingChanges = true;
     });
     sizeRadios.forEach((radio) => {

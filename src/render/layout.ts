@@ -71,6 +71,7 @@ function applyWrapperPreferredClass(
  */
 export function applySettingsToContainer(container: HTMLDivElement, option: SettingOptions, onLimitTogglePersist?: () => void) {
     setCssProps(container, { "--plugin-container-gap": `${option.gap}px` });
+    container.style.marginLeft = option.paddingLeft > 0 ? `${option.paddingLeft}px` : "";
 
     // 这里只处理图片组中的缩略图，不包含大图预览；大图预览始终保持原图样式
     const imgs = Array.from(container.querySelectorAll<HTMLImageElement>(".plugin-image"));

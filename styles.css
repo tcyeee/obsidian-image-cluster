@@ -201,6 +201,14 @@
   cursor: pointer; /* 覆盖编辑模式下 CodeMirror 的文本光标 */
 }
 
+/* 阅读模式：Obsidian 的区块流会在代码块上方多出约一行的区块间距（约 16px），
+   而 Live Preview 中图片块紧贴上方文字（间距仅来自 container 自身的 padding-top）。
+   以 Live Preview 为准：用负 margin 抵消阅读模式多出的上间距，使两种模式上边距一致。
+   .markdown-preview-view 只匹配阅读视图（Live Preview 位于 .markdown-source-view），故不会影响编辑模式。 */
+.markdown-preview-view .block-language-imgs {
+  margin-top: -16px;
+}
+
 /* setting操作面板，仅样式；
    position: fixed 绕过 CodeMirror overflow 裁剪，top/right 由 JS 动态计算注入 CSS 变量 */
 .plugin-image-setting-panel {

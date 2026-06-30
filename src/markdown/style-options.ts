@@ -32,6 +32,10 @@ export function parseStyleOptions(source: string): SettingOptions {
     if (key == "border") settings.border = value.toLowerCase() === "true";
     if (key == "hidden") settings.hidden = value.toLowerCase() === "true";
     if (key == "limit") settings.limit = value.toLowerCase() === "true";
+    if (key == "padding-left") {
+      const px = Number(value);
+      if (Number.isFinite(px) && px >= 0) settings.paddingLeft = px;
+    }
   }
   return settings;
 }

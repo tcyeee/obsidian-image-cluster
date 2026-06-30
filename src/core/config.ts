@@ -6,6 +6,8 @@ export const config = {
     DEFAULT_BORDER: false, // 默认是否边框
     DEFAULT_HIDDEN: false, // 默认是否隐藏图片
     DEFAULT_LIMIT: false,  // 默认是否限制显示行数
+    DEFAULT_PADDING_LEFT: 0, // 默认左侧内移像素（0 表示不右移；单位 px）
+    LIST_INDENT_PX: 28,          // Obsidian ul>li margin-inline-start:3ch ≈ 28px
 
     /* SMALL */
     SMALL_SIZE: 90,

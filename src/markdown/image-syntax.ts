@@ -8,10 +8,20 @@
  *   ```imgs
  *   ![|406x259](/assets/20251128083922.png)
  *   ```
+ *
+ * @param paddingLeft - 左侧内移像素（>0 时在配置行中加入 padding-left=<px>；单位 px）
  */
-export function imgsWrapper(imageSyntax: string): string {
+export function imgsWrapper(imageSyntax: string, paddingLeft = 0): string {
   const trimmed = imageSyntax.trim();
-  return "```imgs\n" + trimmed + "\n```";
+  const configLine = paddingLeft > 0 ? `padding-left=${paddingLeft};;\n` : "";
+  return "```imgs\n" + configLine + trimmed + "\n```\n";
+}
+
+/**
+ * 检测某行文本是否为列表项（bullet / numbered / task list）。
+ */
+export function isListLine(line: string): boolean {
+  return /^\s*([-*+]|\d+\.)\s/.test(line);
 }
 
 /**

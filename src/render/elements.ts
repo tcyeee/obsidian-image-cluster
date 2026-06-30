@@ -46,16 +46,18 @@ export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
     panel.appendChild(createSettingCheckbox("shadow", "shadow"));
     panel.appendChild(createSettingCheckbox("hidden", "hidden"));
     panel.appendChild(createSettingCheckbox("limit", "limit"));
+    panel.appendChild(createSettingCheckbox("padding-left", "padding-left"));
 
     const borderCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="border"]');
     const shadowCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="shadow"]');
     const hiddenCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="hidden"]');
     const limitCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="limit"]');
+    const paddingLeftCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="padding-left"]');
     const sizeRadios = Array.from(
         panel.querySelectorAll<HTMLInputElement>('input[type="radio"][name="' + sizeGroupName + '"]'),
     );
 
-    return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, sizeRadios };
+    return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios };
 }
 
 // 尺寸选项单选（内部仍然使用 radio，外观是按钮组）
@@ -81,7 +83,7 @@ function createSizeRadio(sizeKey: "small" | "medium" | "large", labelText: strin
  * @param checked - 是否选中
  * @returns 
  */
-function createSettingCheckbox(settingKey: "border" | "shadow" | "hidden" | "limit", text: string) {
+function createSettingCheckbox(settingKey: "border" | "shadow" | "hidden" | "limit" | "padding-left", text: string) {
     const label = createEl("label", { cls: "plugin-image-setting-checkbox" });
 
     const textSpan = createSpan({ cls: "plugin-image-setting-checkbox-label", text });
