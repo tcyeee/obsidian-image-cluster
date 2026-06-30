@@ -40,6 +40,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
 
     const isPanelOpen = () => panel.classList.contains("plugin-image-setting-panel--open");
     const openPanel = () => {
+        cancelScheduledClose();
         // 根据按钮当前的视口坐标动态定位面板
         const rect = settingWrapper.getBoundingClientRect();
         setCssProps(panel, {
@@ -54,6 +55,22 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
         panel.classList.remove("plugin-image-setting-panel--open");
     };
 
+    // 失去焦点（鼠标移出）后延迟关闭，期间若鼠标重新移入则取消，避免一离开就消失
+    let closeTimer: number | null = null;
+    const cancelScheduledClose = () => {
+        if (closeTimer !== null) {
+            activeWindow.clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+    };
+    const scheduleClose = () => {
+        cancelScheduledClose();
+        closeTimer = activeWindow.setTimeout(() => {
+            closeTimer = null;
+            closePanel();
+        }, config.PANEL_CLOSE_DELAY);
+    };
+
     // setting按钮点击显示/隐藏面板
     settingBtn.onclick = (e) => {
         e.stopPropagation();
@@ -66,6 +83,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     activeDocument.addEventListener("click", (e: MouseEvent) => {
         // 容器已从 DOM 中移除时，顺带清理 panel 和监听器
         if (!container.isConnected) {
+            cancelScheduledClose();
             panel.remove();
             clickAbortCtrl.abort();
             return;
@@ -74,11 +92,14 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
         const target = e.targetNode;
         if (!target) return;
         if (!settingWrapper.contains(target) && !panel.contains(target)) {
+            // 点击面板外属于显式关闭，立即生效
+            cancelScheduledClose();
             closePanel();
         }
     }, { signal: clickAbortCtrl.signal });
     // 插件卸载时清理挂在 document.body 上的浮动面板和事件监听器
     plugin.register(() => {
+        cancelScheduledClose();
         panel.remove();
         clickAbortCtrl.abort();
     });
@@ -91,19 +112,25 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     // 编辑模式下 wrapper 已迁移到 .cm-preview-code-block，由 CSS :hover 控制可见性
     container.addEventListener("mouseenter", () => {
         settingBtn.classList.add("plugin-image-setting-btn-container--visible");
+        // 鼠标重新移入容器，取消待关闭的计时
+        cancelScheduledClose();
     });
     container.addEventListener("mouseleave", (e: MouseEvent) => {
         settingBtn.classList.remove("plugin-image-setting-btn-container--visible");
         // 如果鼠标移入了面板（含安全区域），不关闭面板
         if (container.contains(settingWrapper) && panel.contains(e.relatedTarget as Node)) return;
-        closePanel();
+        scheduleClose();
     });
 
-    // 鼠标离开面板（含安全区域）时关闭
+    // 鼠标移入面板时取消待关闭的计时
+    panel.addEventListener("mouseenter", () => {
+        cancelScheduledClose();
+    });
+    // 鼠标离开面板（含安全区域）时延迟关闭
     panel.addEventListener("mouseleave", (e: MouseEvent) => {
         // 如果鼠标回到了容器（按钮区域），由容器的 mouseleave 逻辑决定是否关闭
         if (container.contains(e.relatedTarget as Node)) return;
-        closePanel();
+        scheduleClose();
     });
 
     return container;

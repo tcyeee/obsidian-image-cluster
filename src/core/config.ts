@@ -39,4 +39,7 @@ export const config = {
     /* PREVIEW */
     PREVIEW_MIN_SCALE: 1.0, // 预览最小缩放比例
     PREVIEW_MAX_SCALE: 2.5, // 预览最大缩放比例
+
+    /* PANEL */
+    PANEL_CLOSE_DELAY: 500, // 设置面板失去焦点后延迟关闭时间（ms）
 };
