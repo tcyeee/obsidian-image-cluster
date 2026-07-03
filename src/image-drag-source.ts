@@ -57,5 +57,10 @@ export function registerImageDragSource(plugin: ImgRowPlugin) {
 
     plugin.registerDomEvent(document, "dragend", () => {
         clearCurrentDrag();
+        // 兜底清理：正常情况下容器的 dragleave/drop 会自己摘掉高亮，
+        // 这里防止极端情况下（比如拖拽被系统中途取消）残留高亮效果
+        document.querySelectorAll(".plugin-image-container--drag-target").forEach(node => {
+            node.classList.remove("plugin-image-container--drag-target");
+        });
     });
 }

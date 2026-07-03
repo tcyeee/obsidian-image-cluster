@@ -200,6 +200,13 @@
   margin-left: var(--plugin-container-margin-left, 0);
   position: relative; /* 保证setting按钮绝对定位参照容器 */
   cursor: pointer; /* 覆盖编辑模式下 CodeMirror 的文本光标 */
+  border-radius: 6px;
+  transition: background-color 0.15s;
+}
+
+/* 独立图片拖拽悬停在图片组上方时，整体高亮提示这里可以放置 */
+.plugin-image-container--drag-target {
+  background-color: var(--background-modifier-hover);
 }
 
 /* 阅读模式：Obsidian 的区块流会在代码块上方多出约一行的区块间距（约 16px），
