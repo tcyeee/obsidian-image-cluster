@@ -13,6 +13,10 @@
 .plugin-image-drag-before    { box-shadow: -3px 0 0 0 var(--interactive-accent, #5677c0); }
 .plugin-image-drag-after     { box-shadow:  3px 0 0 0 var(--interactive-accent, #5677c0); }
 
+/* 从图片组拖出图片时，编辑器目标行的插入位置提示（上方/下方） */
+.plugin-image-dragline-before { box-shadow: 0 -3px 0 0 var(--interactive-accent, #5677c0); }
+.plugin-image-dragline-after  { box-shadow: 0  3px 0 0 var(--interactive-accent, #5677c0); }
+
 .plugin-image {
   display: block;
   object-fit: cover;
