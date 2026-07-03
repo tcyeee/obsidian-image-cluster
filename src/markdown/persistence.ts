@@ -133,3 +133,64 @@ export async function persistReorderToSource(
 
     await plugin.app.vault.modify(file, newLines.join("\n"));
 }
+
+/**
+ * 把一张「独立图片」拖入某个已有的图片组：一次读改写同时完成
+ * 「删除源图片所在行」与「按 DOM 顺序重建目标代码块内容」，避免分两次写入文件产生竞态。
+ *
+ * @param container - 目标图片组的容器（DOM 顺序即最终写回顺序，含新拖入的临时 wrapper）
+ * @param sourcePath - 源图片所在文件路径；必须与目标图片组所在文件（ctx.sourcePath）一致，
+ *   否则说明是跨文件拖拽（暂不支持），直接放弃，避免删错文件里的行
+ * @param sourceLineIndex - 源图片所在行的行号（0 基，落盘前的文件行号）
+ */
+export async function persistDragInsertToSource(
+    container: HTMLDivElement,
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+    sourcePath: string,
+    sourceLineIndex: number,
+): Promise<void> {
+    if (sourcePath !== ctx.sourcePath) return;
+
+    const section = ctx.getSectionInfo(el);
+    if (!section) return;
+
+    const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(file instanceof TFile)) return;
+
+    const content = await plugin.app.vault.read(file);
+    const lines = content.split("\n");
+    if (sourceLineIndex < 0 || sourceLineIndex >= lines.length) return;
+
+    // 先删除源图片所在行；如果它在目标代码块之前，代码块的行号范围要整体减一
+    lines.splice(sourceLineIndex, 1);
+    let innerStart = section.lineStart + 1;
+    let innerEnd = section.lineEnd;
+    if (sourceLineIndex < innerStart) {
+        innerStart -= 1;
+        innerEnd -= 1;
+    }
+
+    if (innerStart >= innerEnd || innerStart < 0 || innerEnd > lines.length) return;
+
+    const innerLines = lines.slice(innerStart, innerEnd);
+    const configLine = innerLines.find(l => l.includes(";;")) ?? null;
+
+    // 按 DOM 当前顺序读取各 wrapper（含新拖入的临时 wrapper）存储的原始 markdown 图片行
+    const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
+    const newImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
+    if (newImageLines.length === 0) return;
+
+    const newInner = configLine
+        ? `${configLine}\n${newImageLines.join("\n")}`
+        : newImageLines.join("\n");
+
+    const newLines = [
+        ...lines.slice(0, innerStart),
+        ...newInner.split("\n"),
+        ...lines.slice(innerEnd),
+    ];
+
+    await plugin.app.vault.modify(file, newLines.join("\n"));
+}

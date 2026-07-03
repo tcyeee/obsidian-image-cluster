@@ -7,6 +7,7 @@ export interface ImgRowPluginSettings {
     defaultBorder: boolean;
     defaultShadow: boolean;
     enableHoverGroupButton: boolean;
+    enableDragToGroup: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
@@ -14,6 +15,7 @@ export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
     defaultBorder: false,
     defaultShadow: false,
     enableHoverGroupButton: true,
+    enableDragToGroup: true,
 };
 
 /** 将插件设置同步写入 config 默认值，使后续新建的图片组生效 */
@@ -100,6 +102,18 @@ export class ImgRowSettingTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.enableHoverGroupButton)
                     .onChange(async value => {
                         this.plugin.settings.enableHoverGroupButton = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName("Drag image into group")
+            .setDesc("Allow dragging a standalone image (Live Preview) into an existing image group.")
+            .addToggle(toggle =>
+                toggle
+                    .setValue(this.plugin.settings.enableDragToGroup)
+                    .onChange(async value => {
+                        this.plugin.settings.enableDragToGroup = value;
                         await this.plugin.saveSettings();
                     })
             );

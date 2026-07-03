@@ -49,3 +49,16 @@ export function getImageSyntaxes(line: string): string {
 export function hasMarkdownImage(line: string): boolean {
   return /!\[.*?\]\((.*?)\)/.test(line) || /!\[\[.*?\]\]/.test(line);
 }
+
+/**
+ * 判断某行是否「只包含一张图片」（不多不少）。
+ * 用于拖拽场景：整行删除是安全的，前提是这一行不含其他图片或有意义的正文内容。
+ */
+export function isSingleImageLine(line: string): boolean {
+  const imageRegex = /!\[.*?\]\((.*?)\)|!\[\[.*?\]\]/g;
+  const matches = line.match(imageRegex);
+  if (!matches || matches.length !== 1) return false;
+  // 去掉图片语法和列表标记（- / * / + / 1.）后，剩余内容应为空，避免误删同一行的其他文本
+  const remainder = line.replace(imageRegex, "").replace(/^\s*([-*+]|\d+\.)\s*/, "").trim();
+  return remainder.length === 0;
+}
