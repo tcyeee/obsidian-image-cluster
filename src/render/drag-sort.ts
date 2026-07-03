@@ -1,7 +1,7 @@
 import ImgRowPlugin from "main";
 import { MarkdownPostProcessorContext } from "obsidian";
 import { persistReorderToSource, persistDragInsertToSource } from "../markdown/persistence";
-import { STANDALONE_IMAGE_DRAG_MIME, getCurrentDrag } from "../drag-state";
+import { STANDALONE_IMAGE_DRAG_MIME, getCurrentDrag, GROUP_IMAGE_DRAG_MIME, setGroupDrag, clearGroupDrag } from "../drag-state";
 
 /** 在同一行内找离鼠标最近的图片，判断插到它前面还是后面；鼠标不在任何行的高度范围内时返回 null（由调用方决定兜底为追加到末尾）。 */
 function findRowInsertion(
@@ -105,12 +105,27 @@ export function enableDragSort(
             wrapper.classList.add("plugin-image-dragging");
             e.dataTransfer?.setData("text/plain", "");
             if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+
+            // 同时记录"拖出图片组"所需的状态，供 editor-drop-target.ts 在松手落到编辑器
+            // 空白处时使用；组内重排（拖回本组）不受影响，因为那条路径只依赖上面的 dragSrcEl。
+            if (plugin.settings.enableDragToGroup) {
+                setGroupDrag({
+                    sourcePath: ctx.sourcePath,
+                    markdown: wrapper.dataset.imgLine ?? "",
+                    container,
+                    ctx,
+                    el,
+                    wrapper,
+                });
+                e.dataTransfer?.setData(GROUP_IMAGE_DRAG_MIME, "1");
+            }
         });
 
         wrapper.addEventListener("dragend", () => {
             wrapper.classList.remove("plugin-image-dragging");
             clearIndicators();
             dragSrcEl = null;
+            clearGroupDrag();
         });
 
         wrapper.addEventListener("dragover", e => {
