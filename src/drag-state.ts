@@ -1,3 +1,5 @@
+import { MarkdownPostProcessorContext } from "obsidian";
+
 /**
  * 自定义 dataTransfer 类型：用来标记「这是本插件发起的、把一张独立图片拖入图片组」的拖拽，
  * 与 Obsidian 原生的文件拖拽嵌入（从 Finder/资源管理器拖图片进编辑器）区分开，
@@ -26,4 +28,40 @@ export function getCurrentDrag(): StandaloneDragPayload | null {
 
 export function clearCurrentDrag(): void {
     currentDrag = null;
+}
+
+/**
+ * 自定义 dataTransfer 类型：用来标记「这是本插件发起的、把图片组内某张图片拖出」的拖拽，
+ * 与 STANDALONE_IMAGE_DRAG_MIME（拖入图片组）互不相同——这样拖出操作落在另一个已有
+ * 图片组上时不会被其"拖入"逻辑误识别（组间直接移动不在支持范围内，会被自然忽略）。
+ */
+export const GROUP_IMAGE_DRAG_MIME = "application/x-imgcluster-group-image";
+
+export interface GroupDragPayload {
+    /** 源图片组所在文件路径；落点必须与之一致，防止跨文件误删/误插 */
+    sourcePath: string;
+    /** 被拖出图片的原始 Markdown 行 */
+    markdown: string;
+    /** 被拖出图片所属的图片组容器 */
+    container: HTMLDivElement;
+    /** 图片组所在代码块的 MarkdownPostProcessorContext，用于定位代码块在文件中的行范围 */
+    ctx: MarkdownPostProcessorContext;
+    /** 图片组代码块渲染出的根元素，配合 ctx.getSectionInfo 使用 */
+    el: HTMLElement;
+    /** 被拖出的 wrapper 本身，用于从"剩余图片"列表中排除它 */
+    wrapper: HTMLElement;
+}
+
+let currentGroupDrag: GroupDragPayload | null = null;
+
+export function setGroupDrag(payload: GroupDragPayload): void {
+    currentGroupDrag = payload;
+}
+
+export function getGroupDrag(): GroupDragPayload | null {
+    return currentGroupDrag;
+}
+
+export function clearGroupDrag(): void {
+    currentGroupDrag = null;
 }
