@@ -107,8 +107,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Drag image into group")
-            .setDesc("Allow dragging a standalone image (Live Preview) into an existing image group.")
+            .setName("Drag images in/out of groups")
+            .setDesc("Allow dragging a standalone image (Live Preview) into an existing image group, and dragging an image out of a group back into the editor.")
             .addToggle(toggle =>
                 toggle
                     .setValue(this.plugin.settings.enableDragToGroup)
