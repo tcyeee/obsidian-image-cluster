@@ -1,6 +1,7 @@
 import { Plugin } from "obsidian";
 import { addImageLayoutMarkdownProcessor } from "./src/render/processor";
 import { registerEditorMenu } from "./src/editor-menu";
+import { registerHoverGroupTrigger } from "./src/hover-group-trigger";
 import { ImgRowPluginSettings, DEFAULT_SETTINGS, ImgRowSettingTab, applySettingsToConfig } from "./src/settings";
 
 export default class ImgRowPlugin extends Plugin {
@@ -13,6 +14,8 @@ export default class ImgRowPlugin extends Plugin {
 		addImageLayoutMarkdownProcessor(this);
 		// 注册针对图片的右键菜单
 		registerEditorMenu(this);
+		// 注册 Live Preview 下悬停图片出现的「转图片组」按钮
+		registerHoverGroupTrigger(this);
 		// 注册设置页
 		this.addSettingTab(new ImgRowSettingTab(this.app, this));
 	}

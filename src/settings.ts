@@ -6,12 +6,14 @@ export interface ImgRowPluginSettings {
     defaultSize: "small" | "medium" | "large";
     defaultBorder: boolean;
     defaultShadow: boolean;
+    enableHoverGroupButton: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
     defaultSize: "medium",
     defaultBorder: false,
     defaultShadow: false,
+    enableHoverGroupButton: true,
 };
 
 /** 将插件设置同步写入 config 默认值，使后续新建的图片组生效 */
@@ -86,6 +88,18 @@ export class ImgRowSettingTab extends PluginSettingTab {
                     .onChange(async value => {
                         this.plugin.settings.defaultShadow = value;
                         applySettingsToConfig(this.plugin.settings);
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName("Hover-to-group button")
+            .setDesc("Show a button on hover over a standalone image (Live Preview) to convert it into an image group.")
+            .addToggle(toggle =>
+                toggle
+                    .setValue(this.plugin.settings.enableHoverGroupButton)
+                    .onChange(async value => {
+                        this.plugin.settings.enableHoverGroupButton = value;
                         await this.plugin.saveSettings();
                     })
             );
