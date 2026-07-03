@@ -1,6 +1,7 @@
 import ImgRowPlugin from "main";
 import { MarkdownPostProcessorContext, TFile } from "obsidian";
 import { SettingOptions } from "../core/domain";
+import { GroupDragPayload } from "../drag-state";
 
 /**
  * 将当前 option 写回到对应 Markdown 文档的代码块中（更新/插入配置行）。
@@ -191,6 +192,75 @@ export async function persistDragInsertToSource(
         ...newInner.split("\n"),
         ...lines.slice(innerEnd),
     ];
+
+    await plugin.app.vault.modify(file, newLines.join("\n"));
+}
+
+/**
+ * 把图片组内的一张图片拖出，变成编辑器中一行独立的 Markdown 图片：一次读改写同时完成
+ * 「从原图片组代码块中移除该图片」与「在目标位置插入这一行」，避免分两次写入文件产生行号错位。
+ *
+ * @param groupDrag - 被拖出图片的来源信息（图片组容器、代码块 ctx/el、原始 Markdown 行等）
+ * @param plugin - 插件实例
+ * @param targetLineIndex - 目标插入位置的行号（0 基，落盘前、修改前的文件行号）
+ * @param insertBefore - true 表示插入到目标行之前，false 表示插入到目标行之后
+ */
+export async function persistDragOutToSource(
+    groupDrag: GroupDragPayload,
+    plugin: ImgRowPlugin,
+    targetLineIndex: number,
+    insertBefore: boolean,
+): Promise<void> {
+    const file = plugin.app.vault.getAbstractFileByPath(groupDrag.sourcePath);
+    if (!(file instanceof TFile)) return;
+
+    const content = await plugin.app.vault.read(file);
+    const lines = content.split("\n");
+
+    const section = groupDrag.ctx.getSectionInfo(groupDrag.el);
+    if (!section) return;
+
+    const fenceStart = section.lineStart; // ```imgs 这一行
+    const fenceEnd = section.lineEnd;     // ``` 这一行
+    if (fenceStart < 0 || fenceEnd >= lines.length || fenceStart > fenceEnd) return;
+
+    // 目标位置必须落在原代码块范围之外，否则视为无效目标（理论上不会发生：
+    // editor-drop-target.ts 已经在 DOM 层面排除了落在图片组容器内部的情况，这里是防御）
+    if (targetLineIndex >= fenceStart && targetLineIndex <= fenceEnd) return;
+
+    const innerStart = fenceStart + 1;
+    const innerEnd = fenceEnd;
+    const innerLines = lines.slice(innerStart, innerEnd);
+    const configLine = innerLines.find(l => l.includes(";;")) ?? null;
+
+    // 按 DOM 当前顺序读取剩余图片（排除被拖出的那一个）
+    const remainingWrappers = Array.from(groupDrag.container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"))
+        .filter(w => w !== groupDrag.wrapper);
+    const remainingImageLines = remainingWrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
+
+    let newBlockLines: string[];
+    if (remainingImageLines.length === 0) {
+        // 图片组被掏空：整个代码块一并删除
+        newBlockLines = [];
+    } else if (remainingImageLines.length === 1) {
+        // 只剩 1 张：自动拆包为一行普通图片，不再保留代码块
+        newBlockLines = [remainingImageLines[0]];
+    } else {
+        // 仍有 2 张及以上：保留 fence，重建内部内容
+        const newInner = configLine ? [configLine, ...remainingImageLines] : remainingImageLines;
+        newBlockLines = [lines[fenceStart], ...newInner, lines[fenceEnd]];
+    }
+
+    const originalBlockLength = fenceEnd - fenceStart + 1;
+    const delta = newBlockLines.length - originalBlockLength;
+
+    const newLines = [...lines];
+    newLines.splice(fenceStart, originalBlockLength, ...newBlockLines);
+
+    // 目标行在原代码块之后时，要按整块的行数差做偏移修正；目标行在原代码块之前则不受影响
+    const adjustedTargetIndex = targetLineIndex > fenceEnd ? targetLineIndex + delta : targetLineIndex;
+    const insertAt = insertBefore ? adjustedTargetIndex : adjustedTargetIndex + 1;
+    newLines.splice(insertAt, 0, groupDrag.markdown);
 
     await plugin.app.vault.modify(file, newLines.join("\n"));
 }
