@@ -16,6 +16,11 @@ export function createImage(option: SettingOptions, src: string, srcList?: strin
     const img = createEl("img");
     img.src = src;
     img.classList.add("plugin-image");
+    // 禁用 <img> 自身的原生拖拽：否则浏览器会以 img.src（此时是缩略图缓存路径）
+    // 自动生成一份原生拖拽数据，与 wrapper 上的自定义拖拽逻辑（drag-sort.ts）叠加，
+    // 导致拖出图片组时写入的是缓存缩略图而不是原图。禁用后拖拽只由 wrapper 的
+    // draggable 触发，只携带我们自己设置的数据。
+    img.draggable = false;
     setCssProps(img, {
         "--plugin-image-size": `${option.size}px`,
         "--plugin-image-radius": `${option.radius}px`,
