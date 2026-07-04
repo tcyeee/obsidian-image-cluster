@@ -114,6 +114,15 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
         scheduleRemove();
     });
 
+    // 原生拖拽开始后浏览器会停止派发常规的 mouseover/mouseout，
+    // 依赖它们的隐藏逻辑（scheduleRemove）不会被触发；如果被拖走的正是
+    // 当前显示按钮的图片（例如拖入某个图片组），松手后该 <img> 会被移除，
+    // 而按钮是单独 append 到 document.body 的固定定位元素，不会随之消失，
+    // 于是残留悬浮在原来的位置。这里在拖拽一开始就主动移除按钮。
+    plugin.registerDomEvent(document, "dragstart", (e: DragEvent) => {
+        if (e.target === activeImg) removeBtn();
+    });
+
     // 滚动时按钮位置会脱节，直接隐藏；下次悬停再重新出现
     plugin.registerDomEvent(document, "scroll", () => removeBtn(), { capture: true });
 
