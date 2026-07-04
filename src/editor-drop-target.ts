@@ -62,6 +62,10 @@ export function registerEditorDropTarget(plugin: ImgRowPlugin): void {
         const target = resolveLineTarget(e.clientX, e.clientY);
         clearGroupDrag();
         if (!groupDrag || !target) return;
+        // 立即从 DOM 移除源 wrapper，与「拖入图片组」的乐观更新方式保持一致：
+        // 否则要等 Obsidian 异步重新解析文件才会消失，这段等待期内旧的缓存缩略图
+        // 会和目标位置刚渲染出来的真实图片同时出现在屏幕上。
+        groupDrag.wrapper.remove();
         void persistDragOutToSource(groupDrag, plugin, target.lineIndex, target.before);
     });
 
