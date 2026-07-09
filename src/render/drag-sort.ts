@@ -58,7 +58,12 @@ export function enableDragSort(
         } else {
             container.appendChild(tempWrapper);
         }
-        void persistDragInsertToSource(container, plugin, ctx, el, drag.sourcePath, drag.lineIndex);
+        void persistDragInsertToSource(container, plugin, ctx, el, drag.sourcePath, drag.lineIndex).then(ok => {
+            if (ok) return;
+            // 落盘失败（例如源图片行号在读取时已失效）：乐观插入的临时 wrapper 必须撤销，
+            // 否则图片会同时出现在"已拖入的图片组"和"源位置"两个地方。
+            tempWrapper.remove();
+        });
     };
 
     // 容器级别：拖拽独立图片悬停时高亮整个图片组，提示这里可以放置
@@ -109,6 +114,7 @@ export function enableDragSort(
             // 同时记录"拖出图片组"所需的状态，供 editor-drop-target.ts 在松手落到编辑器
             // 空白处时使用；组内重排（拖回本组）不受影响，因为那条路径只依赖上面的 dragSrcEl。
             if (plugin.settings.enableDragToGroup) {
+                const currentWrappers = getWrappers();
                 setGroupDrag({
                     sourcePath: ctx.sourcePath,
                     markdown: wrapper.dataset.imgLine ?? "",
@@ -116,6 +122,8 @@ export function enableDragSort(
                     ctx,
                     el,
                     wrapper,
+                    imageLinesSnapshot: currentWrappers.map(w => w.dataset.imgLine ?? ""),
+                    draggedIndex: currentWrappers.indexOf(wrapper),
                 });
                 e.dataTransfer?.setData(GROUP_IMAGE_DRAG_MIME, "1");
             }

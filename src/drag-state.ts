@@ -50,6 +50,18 @@ export interface GroupDragPayload {
     el: HTMLElement;
     /** 被拖出的 wrapper 本身，用于从"剩余图片"列表中排除它 */
     wrapper: HTMLElement;
+    /**
+     * 拖拽开始时，图片组内全部图片行的快照（DOM 顺序）。
+     * el/container/wrapper 都可能在拖拽过程中因为代码块被重渲染（例如同一文件其他地方的编辑
+     * 触发了整篇重新解析）而失效；此时落盘逻辑改为基于这份快照在当前文件里重新定位代码块、
+     * 计算剩余图片，不再依赖可能已经过期的 DOM 引用。
+     */
+    imageLinesSnapshot: string[];
+    /**
+     * 被拖出图片在 imageLinesSnapshot 中的下标。用下标而不是按 markdown 文本过滤剩余图片，
+     * 是因为同一图片组内可能出现完全相同的图片行（同一张图重复引用），按内容过滤会把两个都删掉。
+     */
+    draggedIndex: number;
 }
 
 let currentGroupDrag: GroupDragPayload | null = null;

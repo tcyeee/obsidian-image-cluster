@@ -7,6 +7,14 @@ import { persistOptionsToSource } from "../markdown/persistence";
 import { createImageContainerElement, createSettingButtonElement, createSettingPanelDom } from "./elements";
 import { applySettingsToContainer, containerLimitCheckboxMap } from "./layout";
 
+// el -> 该 el 上一次 createContainer 调用遗留下来的清理函数。
+// 设置面板挂在 activeDocument.body 上，脱离 el 的子树，processor.ts 的 el.empty() 清不到它；
+// 它原本只靠"下一次点击页面任意位置"时的 isConnected 检测惰性回收。如果同一个 el 被
+// Obsidian 复用、短时间内多次重渲染（每次都会调用 createContainer），没有点击介入的话，
+// 面板和它的 document 级别 click 监听器会一份份地叠加。这里在每次 createContainer 开头，
+// 主动清理同一个 el 上一次遗留的实例，保证任意时刻每个 el 最多只有一份面板存活。
+const cleanupByEl = new WeakMap<HTMLElement, () => void>();
+
 /**
  * 创建图片容器及右上角的设置面板。
  * 面板中的控件会和传入的 SettingOptions 进行绑定，并在修改时写回到 Markdown 源码。
@@ -18,6 +26,9 @@ import { applySettingsToContainer, containerLimitCheckboxMap } from "./layout";
  * @returns 图片容器
  */
 export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ctx: MarkdownPostProcessorContext, el: HTMLElement): HTMLDivElement {
+    // 清理同一个 el 上一次渲染遗留的面板/监听器，避免重渲染时越积越多
+    cleanupByEl.get(el)?.();
+
     const container = createImageContainerElement(option);
 
     // 外层包装：统一承载 setting 按钮 + 面板，便于整体迁移到 .cm-preview-code-block
@@ -59,13 +70,13 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     let closeTimer: number | null = null;
     const cancelScheduledClose = () => {
         if (closeTimer !== null) {
-            activeWindow.clearTimeout(closeTimer);
+            window.clearTimeout(closeTimer);
             closeTimer = null;
         }
     };
     const scheduleClose = () => {
         cancelScheduledClose();
-        closeTimer = activeWindow.setTimeout(() => {
+        closeTimer = window.setTimeout(() => {
             closeTimer = null;
             closePanel();
         }, config.PANEL_CLOSE_DELAY);
@@ -80,12 +91,18 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     // 点击 wrapper 或 panel 之外时自动关闭（panel 已移至 body，需单独判断）
     // 使用 AbortController 以便在容器销毁时移除监听器，避免泄漏
     const clickAbortCtrl = new AbortController();
+    const destroy = () => {
+        cancelScheduledClose();
+        panel.remove();
+        clickAbortCtrl.abort();
+        cleanupByEl.delete(el);
+    };
+    cleanupByEl.set(el, destroy);
+
     activeDocument.addEventListener("click", (e: MouseEvent) => {
         // 容器已从 DOM 中移除时，顺带清理 panel 和监听器
         if (!container.isConnected) {
-            cancelScheduledClose();
-            panel.remove();
-            clickAbortCtrl.abort();
+            destroy();
             return;
         }
         // targetNode 是 Obsidian 对 UIEvent 的跨窗口安全扩展，替代 instanceof Node 判断
@@ -98,11 +115,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
         }
     }, { signal: clickAbortCtrl.signal });
     // 插件卸载时清理挂在 document.body 上的浮动面板和事件监听器
-    plugin.register(() => {
-        cancelScheduledClose();
-        panel.remove();
-        clickAbortCtrl.abort();
-    });
+    plugin.register(destroy);
 
     // 安全区域：面板顶部透明块，覆盖按钮与面板之间的间隙，防止鼠标经过间隙时面板提前消失
     const safeZone = createDiv({ cls: "plugin-image-panel-safe-zone" });

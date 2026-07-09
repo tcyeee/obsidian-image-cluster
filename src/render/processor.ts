@@ -11,14 +11,29 @@ import { createContainer } from "./container";
 import { applySettingsToContainer } from "./layout";
 import { enableDragSort } from "./drag-sort";
 
+// el -> 这个 el 上最近一次调用本处理器时创建的 container。
+// 如果同一个 el 在其 requestAnimationFrame 回调触发前又被重新渲染了一次
+// （el.empty() 清空、创建了新的 container），旧的 rAF 回调不应该再去操作
+// 已经过期的 container——否则可能把过期渲染里的 settingWrapper 插回 codeBlock、
+// 把 enableDragSort 的监听器绑到一个已经从 el 摘除的 container 上。
+const latestContainerByEl = new WeakMap<HTMLElement, HTMLDivElement>();
+
 /**
  * 自动解析imgs代码块
  * 当解析到imgs代码块时，会自动创建一个图片容器，并应用对应的配置。
  */
 export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
     plugin.registerMarkdownCodeBlockProcessor("imgs", (source, el, ctx) => {
+        // Live Preview 下同一个代码块的 el 可能被 Obsidian 复用、多次调用本回调
+        // （例如本插件自身通过 vault.modify 改写源码触发的重渲染）。
+        // 不先清空的话，旧的 container（连同其上的拖拽/排序事件监听器）会残留在 el 里，
+        // 与新渲染出的 container 同时存在，导致同一次拖拽被多套监听器重复处理
+        // （表现为拖入的图片被重复插入、源图片所在行也可能被错误地保留下来）。
+        el.empty();
+
         const option = parseStyleOptions(source);
         const container = createContainer(option, plugin, ctx, el);
+        latestContainerByEl.set(el, container);
 
         const lines = source.split("\n");
         // 用于大图预览的原图地址列表
@@ -86,9 +101,18 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
         // 用 requestAnimationFrame 等待挂载完成后，再将 setting wrapper 移入
         // .cm-preview-code-block，放在原生 edit-block-button 的左侧。
         window.requestAnimationFrame(() => {
+            // 这一帧触发前，el 又被重新渲染过一次：本次 container 已经过期，整段跳过，
+            // 避免把过期渲染的 settingWrapper/拖拽监听器接到已经摘除的 container 上。
+            if (latestContainerByEl.get(el) !== container) return;
+
             const codeBlock = el.closest('.cm-preview-code-block');
             const settingWrapper = container.querySelector<HTMLElement>('.plugin-image-setting-outer');
             if (codeBlock && settingWrapper) {
+                // settingWrapper 会被移出 el、挂到 codeBlock 上，因此不受上面 el.empty() 的清理范围覆盖；
+                // 若同一个 codeBlock 此前已经挂过一份（例如本次是重渲染），需要先移除旧的，避免重复堆叠。
+                codeBlock.querySelectorAll('.plugin-image-setting-outer').forEach((old) => {
+                    if (old !== settingWrapper) old.remove();
+                });
                 const editBtn = codeBlock.querySelector('.edit-block-button');
                 if (editBtn) {
                     codeBlock.insertBefore(settingWrapper, editBtn);
