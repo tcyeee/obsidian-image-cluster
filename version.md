@@ -1,5 +1,16 @@
 # obsidian-image-cluster 更新日志
 
+## 1.3.6 · 2026-07-09
+
+- Fixed dragging an image into a group repeatedly failing/duplicating the image due to a stale-read race against the live editor buffer
+- Added an option to trim solid-color borders (e.g. black canvas padding) from generated thumbnails before cropping
+- Changed the Group button to appear on focus (matching the native edit button) instead of hover, and fixed its behavior in popout windows
+- 修复连续拖入图片到图片组时因读取到过期文件内容而导致的失败/重复图片问题
+- 新增缩略图生成时裁剪纯色边框（如黑色画布留白）的选项
+- 将 Group 按钮的触发条件由悬停改为聚焦（与原生编辑按钮保持一致），并修复其在弹出窗口中的行为
+
+---
+
 ## 1.3.5 · 2026-06-30
 
 - Added automatic thumbnail generation to speed up rendering of image clusters, with concurrency handling
