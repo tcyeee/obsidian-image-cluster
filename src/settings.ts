@@ -8,6 +8,7 @@ export interface ImgRowPluginSettings {
     defaultShadow: boolean;
     enableHoverGroupButton: boolean;
     enableDragToGroup: boolean;
+    enableThumbnailBorderTrim: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
     defaultShadow: false,
     enableHoverGroupButton: true,
     enableDragToGroup: true,
+    enableThumbnailBorderTrim: true,
 };
 
 /** 将插件设置同步写入 config 默认值，使后续新建的图片组生效 */
@@ -114,6 +116,18 @@ export class ImgRowSettingTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.enableDragToGroup)
                     .onChange(async value => {
                         this.plugin.settings.enableDragToGroup = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName("Trim solid-color borders in thumbnails")
+            .setDesc("When generating a thumbnail, try to detect and remove a solid-color border (e.g. black canvas padding in a design mockup) before cropping to a square, so it doesn't get baked into the thumbnail. Only affects newly generated thumbnails, not ones already cached.")
+            .addToggle(toggle =>
+                toggle
+                    .setValue(this.plugin.settings.enableThumbnailBorderTrim)
+                    .onChange(async value => {
+                        this.plugin.settings.enableThumbnailBorderTrim = value;
                         await this.plugin.saveSettings();
                     })
             );
