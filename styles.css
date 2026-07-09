@@ -405,10 +405,12 @@
     pointer-events: auto;
 }
 
-/* ── 悬浮转图片组按钮（Live Preview，鼠标悬停在未成组的图片上时出现） ──
+/* ── 转图片组按钮（Live Preview，图片 embed 获得焦点时出现） ──
    注入到图片 embed 内，与原生 edit-block-button 一起放进新的 flex 容器，
-   占据原本 edit-block-button 的绝对定位位置；两者共用同一个原生 hover
-   触发条件（.cm-embed-block:hover），显示/隐藏完全交给 CSS 控制。 */
+   占据原本 edit-block-button 的绝对定位位置。
+   Live Preview 下的图片 embed 是 div.image-embed（并非 .cm-embed-block），
+   Obsidian 原生用 `div.image-embed:focus-within` 触发 edit-block-button 显示，
+   本按钮沿用同一触发条件，显示/隐藏完全交给 CSS 控制。 */
 .plugin-image-hover-group-wrap {
     position: absolute;
     top: var(--size-2-2);
@@ -417,36 +419,65 @@
     align-items: center;
     gap: 5px;
 }
-/* edit-block-button 现在是 wrap 内的 flex 子项，取消其自身的绝对定位 */
-.plugin-image-hover-group-wrap .edit-block-button {
+/* edit-block-button 现在是 wrap 内的 flex 子项，取消其自身的绝对定位。
+   原生规则 `.markdown-source-view.mod-cm6 .edit-block-button` 有 3 个类选择器（specificity 0,3,0）。
+   只带 `.markdown-source-view.mod-cm6` 祖先前缀去压制在这个具体的祖先组合下才生效；
+   为了不依赖某个具体的祖先类链（万一某个 Live Preview 宿主上下文没有这两个祖先类，
+   这条规则就会失效，edit-block-button 又会变回 absolute 定位盖住 Group 按钮），
+   额外叠加一条只依赖自身类名、把类选择器重复三次人为提高 specificity 到 0,4,0 的规则，
+   保证在任何祖先结构下都能稳定压过原生规则，且不需要用 !important。 */
+.markdown-source-view.mod-cm6 .plugin-image-hover-group-wrap .edit-block-button,
+.plugin-image-hover-group-wrap.plugin-image-hover-group-wrap.plugin-image-hover-group-wrap .edit-block-button {
     position: static;
 }
 
 .plugin-image-hover-group-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
-    /* 与 edit-block-button 相同的 padding，保证高度一致 */
+    /* 与 edit-block-button 相同的 padding，保证尺寸一致（纯图标，无文字） */
     padding: var(--size-2-2) var(--size-2-3);
+    /* 全局 `button {}` 规则会设 height: var(--input-height)，
+       盖过纯内容撑开的高度，导致比 div 形式的 edit-block-button 更高，
+       这里显式重置为 auto，让高度完全由 padding + 图标撑开 */
+    height: auto;
     border-radius: var(--radius-s);
-    color: var(--text-muted);
     cursor: var(--cursor);
     opacity: 0;
+    font: inherit;
+}
+/* <button> 元素会被全局的 `button:not(.clickable-icon)` / `button:hover` /
+   `button:focus-visible` 命中（specificity 0,1,1：1 个元素 + 1 个类/伪类），
+   必须借助外层 wrap 的类名叠加一层类选择器（0,2,0）才能压过它们，否则原生按钮
+   自带的背景色、box-shadow「边框」、focus 光圈、以及 `color: var(--text-color)`
+   （比 var(--text-muted) 深很多）都会透出来，和纯 div 的 edit-block-button 观感不一致。
+   color 之前误留在上面 (0,1,0) 的规则里，压不过 (0,1,1) 的原生规则，
+   导致图标一直显示成 --text-color 而不是 --text-muted，这里一并挪过来。 */
+.plugin-image-hover-group-wrap .plugin-image-hover-group-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: transparent;
+    box-shadow: none;
+    border: none;
+    outline: none;
+    color: var(--text-muted);
+    /* 确保始终盖在 edit-block-button（focus 时 z-index: 2）之上，不被其抢走点击 */
+    position: relative;
+    z-index: 3;
+}
+/* 与原生 edit-block-button 完全一致的显示/配色规则：
+   仅在图片 embed 被选中（:focus-within）时才出现，悬停不再单独触发显示，
+   与右侧原生按钮的显示条件保持一致。 */
+body:not(.is-mobile) div.image-embed:focus-within .plugin-image-hover-group-wrap .plugin-image-hover-group-btn {
+    background-color: var(--background-primary);
+    opacity: 1;
 }
 @media (hover: hover) {
-    .cm-embed-block:not(.cm-table-widget):hover .plugin-image-hover-group-btn {
-        opacity: 1;
-    }
-    .plugin-image-hover-group-btn:hover {
-        background-color: var(--background-modifier-hover);
+    body:not(.is-mobile) div.image-embed:focus-within .plugin-image-hover-group-wrap .plugin-image-hover-group-btn:hover {
+        background-color: var(--background-secondary);
     }
 }
 .plugin-image-hover-group-btn-icon {
     display: inline-flex;
-}
-.plugin-image-hover-group-btn-label {
-    font-size: 12px;
-    line-height: 1;
 }
 
 .icon--error-picture {
