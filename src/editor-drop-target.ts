@@ -18,8 +18,8 @@ function resolveLineTarget(
     const el = activeDocument.elementFromPoint(clientX, clientY) as HTMLElement | null;
     if (!el || el.closest(".plugin-image-container")) return null;
 
-    const lineElement = el.closest(".cm-line") as HTMLElement | null;
-    const editorRoot = el.closest(".cm-editor") as HTMLElement | null;
+    const lineElement = el.closest<HTMLElement>(".cm-line");
+    const editorRoot = el.closest<HTMLElement>(".cm-editor");
     if (!lineElement || !editorRoot) return null;
 
     const view = EditorView.findFromDOM(editorRoot);
@@ -44,7 +44,7 @@ function clearLineIndicators(): void {
  * 成为一行独立的 Markdown 图片；同时从原图片组中移除。
  */
 export function registerEditorDropTarget(plugin: ImgRowPlugin): void {
-    plugin.registerDomEvent(document, "dragover", (e: DragEvent) => {
+    plugin.registerDomEvent(activeDocument, "dragover", (e: DragEvent) => {
         if (!e.dataTransfer?.types.includes(GROUP_IMAGE_DRAG_MIME)) return;
         clearLineIndicators();
         const target = resolveLineTarget(e.clientX, e.clientY);
@@ -54,7 +54,7 @@ export function registerEditorDropTarget(plugin: ImgRowPlugin): void {
         target.lineEl.classList.add(target.before ? LINE_BEFORE_CLASS : LINE_AFTER_CLASS);
     });
 
-    plugin.registerDomEvent(document, "drop", (e: DragEvent) => {
+    plugin.registerDomEvent(activeDocument, "drop", (e: DragEvent) => {
         if (!e.dataTransfer?.types.includes(GROUP_IMAGE_DRAG_MIME)) return;
         e.preventDefault();
         clearLineIndicators();
@@ -69,7 +69,7 @@ export function registerEditorDropTarget(plugin: ImgRowPlugin): void {
         void persistDragOutToSource(groupDrag, plugin, target.lineIndex, target.before);
     });
 
-    plugin.registerDomEvent(document, "dragend", () => {
+    plugin.registerDomEvent(activeDocument, "dragend", () => {
         clearLineIndicators();
         clearGroupDrag();
     });

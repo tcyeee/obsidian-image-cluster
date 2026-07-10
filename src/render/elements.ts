@@ -41,12 +41,22 @@ export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
     sizeGroup.appendChild(createSizeRadio("large", "L", sizeGroupName));
 
     const panel = createDiv({ cls: "plugin-image-setting-panel" });
-    panel.appendChild(sizeGroup);
-    panel.appendChild(createSettingCheckbox("border", "border"));
-    panel.appendChild(createSettingCheckbox("shadow", "shadow"));
-    panel.appendChild(createSettingCheckbox("hidden", "hidden"));
-    panel.appendChild(createSettingCheckbox("limit", "limit"));
-    panel.appendChild(createSettingCheckbox("padding-left", "padding-left"));
+
+    const sizeSection = createDiv({ cls: "plugin-image-setting-section" });
+    sizeSection.appendChild(createSectionTitle("Canvas size"));
+    sizeSection.appendChild(sizeGroup);
+    panel.appendChild(sizeSection);
+
+    const appearanceSection = createDiv({ cls: "plugin-image-setting-section" });
+    appearanceSection.appendChild(createSectionTitle("Appearance"));
+    const checkboxList = createDiv({ cls: "plugin-image-setting-checkbox-list" });
+    checkboxList.appendChild(createSettingCheckbox("border", "border"));
+    checkboxList.appendChild(createSettingCheckbox("shadow", "shadow"));
+    checkboxList.appendChild(createSettingCheckbox("hidden", "hidden"));
+    checkboxList.appendChild(createSettingCheckbox("limit", "limit"));
+    checkboxList.appendChild(createSettingCheckbox("padding-left", "padding-left"));
+    appearanceSection.appendChild(checkboxList);
+    panel.appendChild(appearanceSection);
 
     const borderCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="border"]');
     const shadowCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="shadow"]');
@@ -58,6 +68,11 @@ export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
     );
 
     return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios };
+}
+
+// 面板分组标题（如 "Canvas size" / "Appearance"）
+function createSectionTitle(text: string) {
+    return createDiv({ cls: "plugin-image-setting-section-title", text });
 }
 
 // 尺寸选项单选（内部仍然使用 radio，外观是按钮组）

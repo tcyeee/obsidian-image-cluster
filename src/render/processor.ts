@@ -10,6 +10,7 @@ import { createImage } from "./image";
 import { createContainer } from "./container";
 import { applySettingsToContainer } from "./layout";
 import { enableDragSort } from "./drag-sort";
+import { attachImageWrapperActions } from "./image-actions";
 
 // el -> 这个 el 上最近一次调用本处理器时创建的 container。
 // 如果同一个 el 在其 requestAnimationFrame 回调触发前又被重新渲染了一次
@@ -77,6 +78,8 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     wrapper.dataset.imgLine = line.trim(); // 保存原始 markdown 行，供拖拽排序写回使用
                     wrapper.appendChild(imgEl);
                     container.appendChild(wrapper);
+                    // 悬停时出现的「排除 / 删除」按钮
+                    attachImageWrapperActions(wrapper, file, container, plugin, ctx, el);
 
                     // 如果当前还没有缩略图，则在后台异步生成一份，并在生成后刷新当前 img 的 src
                     if (!(thumbFile instanceof TFile)) {

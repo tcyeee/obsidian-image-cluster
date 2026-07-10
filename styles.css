@@ -227,17 +227,17 @@
   position: fixed;
   top: var(--plugin-panel-top, 0);
   right: var(--plugin-panel-right, 0);
-  min-width: 160px;
+  min-width: 250px;
   display: none;
   background: var(--background-primary);
-  border-radius: 10px;
+  border-radius: 16px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.13);
-  padding: 17px 26px 16px 18px;
+  padding: 20px 20px 18px 20px;
   z-index: 110;
   font-size: 15px;
   color: var(--text-normal);
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
 }
 .plugin-image-setting-panel.plugin-image-setting-panel--open {
   display: flex;
@@ -250,13 +250,34 @@
   right: 0;
   height: 12px;
 }
+
+/* 面板分组：标题 + 内容 */
+.plugin-image-setting-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.plugin-image-setting-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint, var(--text-muted));
+}
+
+/* 勾选项列表 */
+.plugin-image-setting-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .plugin-image-setting-checkbox {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 13px;
-  color: var(--text-muted);
+  font-size: 14px;
+  color: var(--text-normal);
 }
 .plugin-image-setting-panel input[type="checkbox"] {
   accent-color: var(--interactive-accent);
@@ -266,8 +287,8 @@
 }
 .plugin-image-setting-switch {
   position: relative;
-  width: 34px;
-  height: 18px;
+  width: 40px;
+  height: 22px;
   flex-shrink: 0;
 }
 .plugin-image-setting-switch-input {
@@ -290,8 +311,8 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   background: var(--toggle-thumb-color, #ffffff);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
@@ -302,14 +323,17 @@
   box-shadow: 0 0 0 1px rgba(40, 90, 180, 0.35);
 }
 .plugin-image-setting-switch-input:checked + .plugin-image-setting-switch-track::before {
-  transform: translateX(16px);
+  transform: translateX(18px);
 }
 .plugin-image-setting-size-group {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  width: 100%;
+  height: 40px;
+  box-sizing: border-box;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--background-secondary, rgba(240, 242, 247, 0.9));
   gap: 0;
 }
@@ -319,7 +343,7 @@
   bottom: 3px;
   left: 3px;
   width: calc((100% - 6px) / 3);
-  border-radius: 999px;
+  border-radius: 9px;
   background: var(--interactive-accent, #5677c0);
   box-shadow: 0 0 0 1px rgba(40, 90, 180, 0.35);
   transition: transform 0.18s ease;
@@ -334,35 +358,51 @@
 .plugin-image-setting-size-group[data-size="large"] .plugin-image-setting-size-slider {
   transform: translateX(200%);
 }
-.workspace .plugin-image-setting-size-radio {
+.plugin-image-setting-size-radio {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.plugin-image-setting-size-radio {
-  position: relative;
   flex: 1 1 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   cursor: pointer;
-  font-size: 12.5px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: normal;
   color: var(--text-muted);
   z-index: 1;
+  box-sizing: border-box;
 }
 .plugin-image-setting-size-radio-input {
   position: absolute;
   width: 0;
   height: 0;
+  margin: 0;
+  padding: 0;
   opacity: 0;
   pointer-events: none;
 }
 .plugin-image-setting-size-radio-text {
-  padding: 4px 0;
-  min-width: 28px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 14px;
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  line-height: 1;
   text-align: center;
+  white-space: nowrap;
   border-radius: 999px;
 }
 .plugin-image-setting-size-radio-input:checked + .plugin-image-setting-size-radio-text {
-  color: var(--text-on-accent, #ffffff);
-  font-weight: 500;
+  color: var(--text-on-accent, #ffffff81);
+  font-weight: 600;
 }
 
 /* ── setting 外层包装 ── */
@@ -478,6 +518,64 @@ body:not(.is-mobile) div.image-embed:focus-within .plugin-image-hover-group-wrap
 }
 .plugin-image-hover-group-btn-icon {
     display: inline-flex;
+}
+
+/* ── 图片组内单张图片的操作按钮（排除 / 删除，悬停缩略图时出现） ──
+   悬停时仅图片下半部分变暗，呈现从下到上的渐变效果（而非整张图变暗），
+   两个按钮横向居中、纵向靠下，叠在蒙层之上；蒙层与按钮均带淡入 + 位移动画。 */
+.plugin-image-item-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.25) 35%, rgba(0, 0, 0, 0) 65%);
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 3;
+}
+
+.plugin-image-wrapper:hover .plugin-image-item-overlay {
+    opacity: 1;
+}
+
+.plugin-image-item-actions {
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    transform: translate(-50%, 6px);
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 4;
+}
+
+.plugin-image-wrapper:hover .plugin-image-item-actions {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
+}
+
+.plugin-image-item-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-s);
+    background-color: var(--background-primary);
+    color: var(--text-muted);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.plugin-image-item-action-btn:hover {
+    color: var(--text-normal);
+    background-color: var(--background-secondary);
+}
+
+.plugin-image-item-action-btn--danger:hover {
+    color: var(--text-error, #e93147);
 }
 
 .icon--error-picture {

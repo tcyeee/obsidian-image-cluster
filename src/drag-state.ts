@@ -10,9 +10,14 @@ export const STANDALONE_IMAGE_DRAG_MIME = "application/x-imgcluster-image";
 export interface StandaloneDragPayload {
     /** 源图片所在文件路径；落盘时必须与目标图片组所在文件一致，防止跨文件误删行 */
     sourcePath: string;
-    /** 该图片在文件中所在行的行号（0 基），用于落盘时删除原始行 */
+    /** 该图片在文件中所在行的行号（0 基） */
     lineIndex: number;
-    /** 该行原始 Markdown 文本（如 "![[a.png]]"），落盘时作为新的一行插入目标代码块 */
+    /**
+     * 该图片是 lineIndex 这一行里的第几个图片语法匹配项（0 基，对应 getImageMatches 的下标）。
+     * 同一行可能写了不止一张图片，落盘时要精确移除这一张，同行其他图片/文字原样保留。
+     */
+    matchIndex: number;
+    /** 这张图片自身的 Markdown 语法文本（如 "![[a.png]]"），落盘时作为新的一行插入目标代码块 */
     markdown: string;
 }
 

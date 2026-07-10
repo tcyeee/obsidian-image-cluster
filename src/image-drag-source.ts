@@ -1,7 +1,7 @@
 import ImgRowPlugin from "main";
 import { MarkdownView } from "obsidian";
 import { EditorView } from "@codemirror/view";
-import { isSingleImageLine } from "./markdown/image-syntax";
+import { getImageMatches } from "./markdown/image-syntax";
 import { STANDALONE_IMAGE_DRAG_MIME, setCurrentDrag, clearCurrentDrag } from "./drag-state";
 
 /** 根据 DOM 节点找到承载它的 Markdown 文件路径，用于校验拖拽源和落点必须同一个文件 */
@@ -27,22 +27,30 @@ export function registerImageDragSource(plugin: ImgRowPlugin) {
         return true;
     };
 
-    plugin.registerDomEvent(document, "dragstart", (e: DragEvent) => {
+    plugin.registerDomEvent(activeDocument, "dragstart", (e: DragEvent) => {
         if (!plugin.settings.enableDragToGroup) return;
         if (!isEligibleImage(e.target)) return;
         const img = e.target;
 
-        const editorRoot = img.closest(".cm-editor") as HTMLElement | null;
+        const editorRoot = img.closest<HTMLElement>(".cm-editor");
         const view = editorRoot ? EditorView.findFromDOM(editorRoot) : null;
         if (!view) return;
 
         const pos = view.posAtDOM(img);
         const line = view.state.doc.lineAt(pos);
-        if (!isSingleImageLine(line.text)) {
-            // 同一行还有其他图片或正文内容，整行删除不安全，取消这次拖拽
+        const matches = getImageMatches(line.text);
+        if (matches.length === 0) {
             e.preventDefault();
             return;
         }
+
+        // Live Preview 用 widget 替换了图片语法对应的源码区间，posAtDOM 返回的正是该区间的
+        // 起点；用「落在 [start, end) 内」定位这是当前行第几张图片，同一行写了多张图片时
+        // 也能精确区分具体拖的是哪一张——而不是像过去那样，只要同行有其他内容/图片就整体
+        // 禁止拖拽。
+        const offsetInLine = pos - line.from;
+        let matchIndex = matches.findIndex(m => offsetInLine >= m.start && offsetInLine < m.end);
+        if (matchIndex === -1) matchIndex = matches.length - 1;
 
         const sourcePath = getFilePathForNode(plugin, img);
         if (!sourcePath) {
@@ -50,12 +58,17 @@ export function registerImageDragSource(plugin: ImgRowPlugin) {
             return;
         }
 
-        setCurrentDrag({ sourcePath, lineIndex: line.number - 1, markdown: line.text });
+        setCurrentDrag({
+            sourcePath,
+            lineIndex: line.number - 1,
+            matchIndex,
+            markdown: matches[matchIndex].text,
+        });
         e.dataTransfer?.setData(STANDALONE_IMAGE_DRAG_MIME, "1");
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
     });
 
-    plugin.registerDomEvent(document, "dragend", () => {
+    plugin.registerDomEvent(activeDocument, "dragend", () => {
         clearCurrentDrag();
         // 兜底清理：正常情况下容器的 dragleave/drop 会自己摘掉高亮，
         // 这里防止极端情况下（比如拖拽被系统中途取消）残留高亮效果

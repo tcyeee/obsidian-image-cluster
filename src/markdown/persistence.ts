@@ -3,6 +3,7 @@ import { MarkdownPostProcessorContext, Notice, TFile } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { SettingOptions } from "../core/domain";
 import { GroupDragPayload } from "../drag-state";
+import { removeImageFromLine } from "./image-syntax";
 
 /**
  * 按文件路径排队执行「读整篇文件 -> 计算新内容 -> 写回」的持久化操作，确保同一个文件的
@@ -39,7 +40,7 @@ function enqueueFileOp<T>(path: string, op: () => Promise<T>): Promise<T> {
  * 永远是一致的。
  */
 function readCurrentContent(plugin: ImgRowPlugin, file: TFile, el: HTMLElement): Promise<string> {
-    const editorRoot = el.closest(".cm-editor") as HTMLElement | null;
+    const editorRoot = el.closest<HTMLElement>(".cm-editor");
     const view = editorRoot ? EditorView.findFromDOM(editorRoot) : null;
     if (view) return Promise.resolve(view.state.doc.toString());
     return plugin.app.vault.read(file);
@@ -66,7 +67,7 @@ async function writeFileContent(
     oldContent: string,
     newContent: string,
 ): Promise<void> {
-    const editorRoot = el.closest(".cm-editor") as HTMLElement | null;
+    const editorRoot = el.closest<HTMLElement>(".cm-editor");
     const view = editorRoot ? EditorView.findFromDOM(editorRoot) : null;
 
     if (view && view.state.doc.toString() === oldContent) {
@@ -234,6 +235,117 @@ export async function persistReorderToSource(
 }
 
 /**
+ * 根据剩余图片行数，计算图片组代码块收缩后的新内容：
+ * 剩 0 张则整个代码块一并删除，剩 1 张则拆包为普通图片行，2 张及以上保留 fence 并重建内部内容。
+ * persistRemoveImageFromSource 与 persistExcludeImageToSource 共用这份收缩规则
+ * （与 persistDragOutToSource 中的规则保持一致）。
+ */
+function buildShrunkGroupBlockLines(
+    lines: string[],
+    lineStart: number,
+    lineEnd: number,
+    remainingImageLines: string[],
+): string[] {
+    if (remainingImageLines.length === 0) return [];
+    if (remainingImageLines.length === 1) return [remainingImageLines[0]];
+
+    const innerLines = lines.slice(lineStart + 1, lineEnd);
+    const configLine = innerLines.find(l => l.includes(";;")) ?? null;
+    const newInner = configLine ? [configLine, ...remainingImageLines] : remainingImageLines;
+    return [lines[lineStart], ...newInner, lines[lineEnd]];
+}
+
+/**
+ * 从图片组中永久移除一张图片（不重新插入到任何位置），用于「删除」按钮在原图被删除后
+ * 同步清理组内对应的那一行——原图已经不存在，不能再保留指向它的 Markdown 行。
+ * 整个读-改-写过程通过 enqueueFileOp 按文件路径排队，避免和同一文件上的其他持久化调用交叉。
+ *
+ * @param container - 图片组容器；调用方需在调用前已将被移除的 wrapper 从 DOM 中摘除，
+ *   剩余顺序按当前 DOM 顺序写回。
+ */
+export async function persistRemoveImageFromSource(
+    container: HTMLDivElement,
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+): Promise<void> {
+    await enqueueFileOp(ctx.sourcePath, async () => {
+        const section = ctx.getSectionInfo(el);
+        if (!section) return;
+
+        const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+        if (!(file instanceof TFile)) return;
+
+        const content = await readCurrentContent(plugin, file, el);
+        const lines = content.split("\n");
+
+        const { lineStart, lineEnd } = section;
+        if (lineStart < 0 || lineEnd >= lines.length || lineStart > lineEnd) return;
+
+        // 按 DOM 当前顺序（调用方已移除被删除的 wrapper）读取剩余图片行
+        const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
+        const remainingImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
+        const newBlockLines = buildShrunkGroupBlockLines(lines, lineStart, lineEnd, remainingImageLines);
+
+        const newLines = [
+            ...lines.slice(0, lineStart),
+            ...newBlockLines,
+            ...lines.slice(lineEnd + 1),
+        ];
+
+        await writeFileContent(plugin, file, el, content, newLines.join("\n"));
+    });
+}
+
+/**
+ * 「排除」一张图片：把它从图片组中移出，重新以独立图片行的形式放到图片组正下方，
+ * 上下各留一行空行；缓存缩略图与原图文件都不受影响。
+ * 组内剩余图片的收缩规则见 buildShrunkGroupBlockLines。
+ * 整个读-改-写过程通过 enqueueFileOp 按文件路径排队，避免和同一文件上的其他持久化调用交叉。
+ *
+ * @param container - 图片组容器；调用方需在调用前已将被排除的 wrapper 从 DOM 中摘除，
+ *   剩余顺序按当前 DOM 顺序写回。
+ * @param excludedImageLine - 被排除图片的原始 Markdown 行（wrapper.dataset.imgLine）
+ */
+export async function persistExcludeImageToSource(
+    container: HTMLDivElement,
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+    excludedImageLine: string,
+): Promise<void> {
+    await enqueueFileOp(ctx.sourcePath, async () => {
+        const section = ctx.getSectionInfo(el);
+        if (!section) return;
+
+        const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+        if (!(file instanceof TFile)) return;
+
+        const content = await readCurrentContent(plugin, file, el);
+        const lines = content.split("\n");
+
+        const { lineStart, lineEnd } = section;
+        if (lineStart < 0 || lineEnd >= lines.length || lineStart > lineEnd) return;
+
+        const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
+        const remainingImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
+        const newBlockLines = buildShrunkGroupBlockLines(lines, lineStart, lineEnd, remainingImageLines);
+
+        // 被排除的图片放到图片组下方，上下各留一行空行
+        const excludedLines = ["", excludedImageLine, ""];
+
+        const newLines = [
+            ...lines.slice(0, lineStart),
+            ...newBlockLines,
+            ...excludedLines,
+            ...lines.slice(lineEnd + 1),
+        ];
+
+        await writeFileContent(plugin, file, el, content, newLines.join("\n"));
+    });
+}
+
+/**
  * 把一张「独立图片」拖入某个已有的图片组：一次读改写同时完成
  * 「删除源图片所在行」与「按 DOM 顺序重建目标代码块内容」，避免分两次写入文件产生竞态。
  * 整个读-改-写过程通过 enqueueFileOp 按文件路径排队，避免和同一文件上的其他持久化调用交叉
@@ -243,6 +355,9 @@ export async function persistReorderToSource(
  * @param sourcePath - 源图片所在文件路径；必须与目标图片组所在文件（ctx.sourcePath）一致，
  *   否则说明是跨文件拖拽（暂不支持），直接放弃，避免删错文件里的行
  * @param sourceLineIndex - 源图片所在行的行号（0 基，落盘前的文件行号）
+ * @param sourceMatchIndex - 源图片是 sourceLineIndex 这一行里的第几个图片语法匹配项（0 基）。
+ *   同一行可能写了不止一张图片，只移除这一张，同行其他图片/文字原样保留；
+ *   只有整行确实除这张图片外别无内容时，才把整行一并删除。
  * @returns 是否成功写入。调用方（drag-sort.ts）在失败时需要把乐观插入的临时 wrapper 从
  *   DOM 中移除——否则会出现"图片显示进了图片组，但源位置的图片也没消失"的重复图片问题。
  */
@@ -253,6 +368,7 @@ export async function persistDragInsertToSource(
     el: HTMLElement,
     sourcePath: string,
     sourceLineIndex: number,
+    sourceMatchIndex: number,
 ): Promise<boolean> {
     if (sourcePath !== ctx.sourcePath) return false;
 
@@ -267,13 +383,19 @@ export async function persistDragInsertToSource(
         const lines = content.split("\n");
         if (sourceLineIndex < 0 || sourceLineIndex >= lines.length) return false;
 
-        // 先删除源图片所在行；如果它在目标代码块之前，代码块的行号范围要整体减一
-        lines.splice(sourceLineIndex, 1);
+        // 只移除源图片所在行里被拖走的这一张；若移除后该行再无有意义内容（忽略列表标记），
+        // 才把整行一并删除——此时如果它在目标代码块之前，代码块的行号范围要整体减一。
+        const { text: remainingLineText, empty } = removeImageFromLine(lines[sourceLineIndex], sourceMatchIndex);
         let innerStart = section.lineStart + 1;
         let innerEnd = section.lineEnd;
-        if (sourceLineIndex < innerStart) {
-            innerStart -= 1;
-            innerEnd -= 1;
+        if (empty) {
+            lines.splice(sourceLineIndex, 1);
+            if (sourceLineIndex < innerStart) {
+                innerStart -= 1;
+                innerEnd -= 1;
+            }
+        } else {
+            lines[sourceLineIndex] = remainingLineText;
         }
 
         if (innerStart >= innerEnd || innerStart < 0 || innerEnd > lines.length) return false;

@@ -58,7 +58,7 @@ export function enableDragSort(
         } else {
             container.appendChild(tempWrapper);
         }
-        void persistDragInsertToSource(container, plugin, ctx, el, drag.sourcePath, drag.lineIndex).then(ok => {
+        void persistDragInsertToSource(container, plugin, ctx, el, drag.sourcePath, drag.lineIndex, drag.matchIndex).then(ok => {
             if (ok) return;
             // 落盘失败（例如源图片行号在读取时已失效）：乐观插入的临时 wrapper 必须撤销，
             // 否则图片会同时出现在"已拖入的图片组"和"源位置"两个地方。

@@ -39,7 +39,7 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
     };
 
     const convertImageToGroup = (img: HTMLImageElement) => {
-        const editorRoot = img.closest(".cm-editor") as HTMLElement | null;
+        const editorRoot = img.closest<HTMLElement>(".cm-editor");
         const view = editorRoot ? EditorView.findFromDOM(editorRoot) : null;
         if (!view) return;
 
@@ -101,6 +101,6 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
     // 保证按钮在 embed 获得焦点（原生 edit 按钮出现的时机）前已存在于 DOM。
     // 用 e.targetNode（Obsidian 对 UIEvent 的跨窗口安全扩展）而不是裸的 e.target，
     // 这样它的类型是 Node，可以直接配合 .instanceOf() 做跨窗口安全的类型判断。
-    plugin.registerDomEvent(document, "mouseover", (e: MouseEvent) => maybeInject(e.targetNode));
-    plugin.registerDomEvent(document, "focusin", (e: FocusEvent) => maybeInject(e.targetNode));
+    plugin.registerDomEvent(activeDocument, "mouseover", (e: MouseEvent) => maybeInject(e.targetNode));
+    plugin.registerDomEvent(activeDocument, "focusin", (e: FocusEvent) => maybeInject(e.targetNode));
 }
