@@ -1,5 +1,18 @@
 # obsidian-image-cluster 更新日志
 
+## 1.3.7 · 2026-07-10
+
+- Added exclude/delete actions shown on hover for images inside a group, with a confirmation dialog when deleting an image still referenced elsewhere in the vault
+- Added support for dragging a single image out of a line that contains multiple images, without disturbing the other images on that line
+- Grouped the image settings panel into labeled sections (Canvas size / Appearance) for clarity
+- Fixed several strict type-safety lint warnings (tsconfig `lib` version, popout-window event targets, DOM type narrowing)
+- 新增图片组内单图 hover 时的「排除」「删除」操作，删除仍被 vault 中其他地方引用的原图时会先弹窗确认
+- 新增精确拖出「同一行内多张图片中的一张」的支持，不再影响该行内的其他图片
+- 设置面板按分组加上标题（Canvas size / Appearance），层次更清晰
+- 修复若干严格类型检查 lint 警告（tsconfig `lib` 版本、弹出窗口事件目标、DOM 类型收窄）
+
+---
+
 ## 1.3.6 · 2026-07-09
 
 - Fixed dragging an image into a group repeatedly failing/duplicating the image due to a stale-read race against the live editor buffer
