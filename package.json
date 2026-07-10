@@ -12,6 +12,8 @@
 	"author": "tcyeee",
 	"license": "MIT",
 	"devDependencies": {
+		"@codemirror/state": "^6.0.0",
+		"@codemirror/view": "^6.0.0",
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.62.0",
 		"@typescript-eslint/parser": "5.62.0",
