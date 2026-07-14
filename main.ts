@@ -5,6 +5,7 @@ import { registerHoverGroupTrigger } from "./src/hover-group-trigger";
 import { registerImageDragSource } from "./src/image-drag-source";
 import { registerEditorDropTarget } from "./src/editor-drop-target";
 import { ImgRowPluginSettings, DEFAULT_SETTINGS, ImgRowSettingTab, applySettingsToConfig } from "./src/settings";
+import { registerThumbnailCacheLifecycle } from "./src/thumbnail/thumbnail";
 
 export default class ImgRowPlugin extends Plugin {
 	settings: ImgRowPluginSettings;
@@ -24,6 +25,8 @@ export default class ImgRowPlugin extends Plugin {
 		registerEditorDropTarget(this);
 		// 注册设置页
 		this.addSettingTab(new ImgRowSettingTab(this.app, this));
+		// 原图被原生方式重命名/删除时，同步迁移/清理对应的缓存缩略图，避免孤儿文件
+		registerThumbnailCacheLifecycle(this);
 	}
 
 	async loadSettings() {

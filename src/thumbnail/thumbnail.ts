@@ -1,7 +1,8 @@
 import ImgRowPlugin from "main";
-import { TFile } from "obsidian";
+import { TFile, normalizePath } from "obsidian";
 import { config } from "../core/config";
 import { detectContentRect } from "./content-rect";
+import { md5 } from "./md5";
 
 // 记录每个正在生成中的缩略图路径 -> 等待这次生成结果的所有 <img> 元素。
 // 避免并发情况下对同一文件重复 createBinary 导致 "File already exists."，
@@ -132,4 +133,59 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
   } finally {
     generatingThumbnails.delete(thumbPath);
   }
+}
+
+/**
+ * 让缓存缩略图跟随原图的生命周期一起变化。
+ *
+ * 缩略图以 md5(file.path) 命名，天然和原图路径绑定。用户通过本插件自带的「删除」按钮
+ * 删除图片时，image-actions.ts 会显式先删缓存再删原图；但如果用户是通过 Obsidian 原生
+ * 方式（文件管理器重命名/移动/删除）操作原图，这两个动作都不会经过插件的删除逻辑——
+ * 重命名后旧路径算出的缓存文件不再被任何原图对应，永久变成孤儿，且无从复用（新路径会
+ * 生成新的缓存），只会在 assets/cache/ 里越积越多；直接删除原图后同理，旧缓存不会被清理。
+ * 这里监听 vault 的 rename/delete 事件，让缓存跟着原图重命名/删除。
+ */
+export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
+  const thumbPathFor = (path: string) => normalizePath(`${config.THUMBNAIL_PATH}${md5(path)}`);
+
+  plugin.registerEvent(
+    plugin.app.vault.on("rename", (file, oldPath) => {
+      // 缓存目录自身文件的 rename/delete 不需要（也不应该）触发这里的逻辑，
+      // 否则会对一个本就是缓存文件的路径去找"它的缓存"，纯属无意义的空转。
+      if (!(file instanceof TFile) || file.path.startsWith(config.THUMBNAIL_PATH) || oldPath.startsWith(config.THUMBNAIL_PATH)) {
+        return;
+      }
+      void (async () => {
+        const oldThumbPath = thumbPathFor(oldPath);
+        const oldThumb = plugin.app.vault.getAbstractFileByPath(oldThumbPath);
+        if (!(oldThumb instanceof TFile)) return; // 原本就没有缓存，无需迁移
+
+        const newThumbPath = thumbPathFor(file.path);
+        if (plugin.app.vault.getAbstractFileByPath(newThumbPath)) return; // 目标路径已有缓存，保留旧缓存原样，避免覆盖
+
+        try {
+          await plugin.app.vault.rename(oldThumb, newThumbPath);
+        } catch (error) {
+          console.error("Failed to migrate thumbnail cache after rename", oldPath, "->", file.path, error);
+        }
+      })();
+    }),
+  );
+
+  plugin.registerEvent(
+    plugin.app.vault.on("delete", (file) => {
+      if (!(file instanceof TFile) || file.path.startsWith(config.THUMBNAIL_PATH)) return;
+      void (async () => {
+        const thumbPath = thumbPathFor(file.path);
+        const thumb = plugin.app.vault.getAbstractFileByPath(thumbPath);
+        // 通过插件自带删除按钮删除时，缓存已经被 image-actions.ts 提前删掉，这里查不到，直接跳过。
+        if (!(thumb instanceof TFile)) return;
+        try {
+          await plugin.app.fileManager.trashFile(thumb);
+        } catch (error) {
+          console.error("Failed to clean up thumbnail cache after delete", file.path, error);
+        }
+      })();
+    }),
+  );
 }

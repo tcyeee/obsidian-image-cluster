@@ -31,7 +31,7 @@ export function isListLine(line: string): boolean {
  */
 export function getImageSyntaxes(line: string): string {
   const imageSyntaxes: string[] = [];
-  const imageRegex = /!\[.*?\]\((.*?)\)|!\[\[.*?\]\]/g;
+  const imageRegex = /!\[[^\]]*\]\([^)]*\)|!\[\[.*?\]\]/g;
   let match: RegExpExecArray | null;
   while ((match = imageRegex.exec(line)) !== null) {
     imageSyntaxes.push(match[0]);
@@ -62,15 +62,48 @@ export interface ImageMatch {
 /**
  * 提取一行中全部图片语法及其在行内的起止字符偏移。
  * 用于拖拽场景精确定位「这一行里第几张图片」——同一行可能写了不止一张图片。
+ *
+ * 注意 Markdown 语法这一半用的是 [^\]] / [^)]，而不是看起来更简洁的 .*?：
+ * 如果一行先写了一个 Wiki 链接、后面再跟一个 Markdown 语法的图片
+ * （如 "![[a.png]] and ![b](b.png)"），.*? 惰性匹配仍然会越过 Wiki 链接自己的 ]]，
+ * 一路扩张到后面 Markdown 图片的 "](" 才停下，导致整段被当成一个匹配，
+ * 中间的 Wiki 图片被吞并、后面的 Markdown 图片也定位不到。限制字符类使其不能跨越
+ * "]" / ")" 边界，就不会再吃到别的图片语法里去。
  */
 export function getImageMatches(line: string): ImageMatch[] {
-  const imageRegex = /!\[.*?\]\((.*?)\)|!\[\[.*?\]\]/g;
+  const imageRegex = /!\[[^\]]*\]\([^)]*\)|!\[\[.*?\]\]/g;
   const matches: ImageMatch[] = [];
   let match: RegExpExecArray | null;
   while ((match = imageRegex.exec(line)) !== null) {
     matches.push({ text: match[0], start: match.index, end: match.index + match[0].length });
   }
   return matches;
+}
+
+export interface ImagePathMatch {
+  /** 该图片语法在行内的完整原始文本，如 "![[a.png]]" */
+  text: string;
+  /** 从语法中提取出的实际文件路径（Wiki 链接已剥离 |别名 与 #锚点 部分） */
+  rawPath: string;
+}
+
+/**
+ * 提取一行中全部图片语法及各自对应的实际文件路径。
+ * 与 getImageMatches 的区别：这里同时解析出路径，供渲染阶段逐张解析文件用——
+ * 一行可能写了不止一张图片（正常操作不会产生这种行，但手动编辑可能），
+ * 需要把每一张都解析出来渲染，而不是像单次 .exec() 那样只拿到第一张。
+ */
+export function getImagePathMatches(line: string): ImagePathMatch[] {
+  // 见 getImageMatches 顶部注释：Markdown 语法这一半必须用 [^\]] / [^)]，
+  // 不能用 .*?，否则前面有 Wiki 链接、后面跟 Markdown 图片时会越界吞并成一个匹配。
+  const imageRegex = /!\[[^\]]*\]\(([^)]*)\)|!\[\[([^\]|#]+?)(?:[|#][^\]]*)?\]\]/g;
+  const results: ImagePathMatch[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = imageRegex.exec(line)) !== null) {
+    const rawPath = match[1] !== undefined ? match[1] : (match[2] ?? "").trim();
+    results.push({ text: match[0], rawPath });
+  }
+  return results;
 }
 
 /**
