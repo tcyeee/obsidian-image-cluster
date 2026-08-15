@@ -17,7 +17,9 @@ export class ConfirmDeleteImageModal extends Modal {
 
     onOpen(): void {
         const { contentEl } = this;
-        contentEl.createEl("h3", { text: "Delete image" });
+        // 标题走 Modal 自带的 titleEl（setTitle），不要在 contentEl 里手搓 <h3>——
+        // 后者既拿不到 Obsidian 的标题样式，也会被提交审核判为直接构造标题元素。
+        this.setTitle("Delete image");
         contentEl.createEl("p", {
             text: `This image is referenced in ${this.otherRefCount} other place${this.otherRefCount > 1 ? "s" : ""} in your vault. Deleting the original file will break those references.`,
         });
