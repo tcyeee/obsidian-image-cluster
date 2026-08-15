@@ -1,5 +1,16 @@
 # obsidian-image-cluster 更新日志
 
+## 1.4.2 · 2026-08-15
+
+- The hover action bars now match Obsidian's native ones: both the image group's own bar and the per-image "remove / delete" bar get the same frosted backdrop panel, button size, corner radius, hover highlight and mobile touch sizing as the buttons on a plain image embed
+- Replaced the dark gradient that used to wash over the bottom of a thumbnail on hover with the standard top-right button bar, so hovering a single image and hovering an image group no longer look like two different plugins in the same note
+- All of the above reads Obsidian's own `--embed-actions-*` variables, so themes that restyle those buttons restyle these too
+- 悬停操作按钮栏改为与 Obsidian 原生一致：图片组自身的按钮栏和组内单图的「排除 / 删除」按钮栏，都用上和普通图片 embed 相同的毛玻璃背景板、按钮尺寸、圆角、悬停高亮与移动端触控尺寸
+- 缩略图悬停时不再压一层从下往上的黑色渐变，改为右上角的标准按钮栏，同一篇笔记里悬停单张图片和悬停图片组不会再像两个插件
+- 以上取值全部走 Obsidian 自己的 `--embed-actions-*` 变量，主题改了原生按钮样式，这里会跟着一起变
+
+---
+
 ## 1.4.1 · 2026-08-15
 
 - Replaced `display: contents` on the settings-button wrapper with a shrink-to-fit flex box: the layout is identical, but `display: contents` is only partially supported by the Electron build Obsidian ships and was flagged during plugin review
