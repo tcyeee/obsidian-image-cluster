@@ -1,16 +1,14 @@
 import ImgRowPlugin from "main";
-import { TFile, normalizePath } from "obsidian";
-import { config } from "../core/config";
+import { TFile } from "obsidian";
 import { parseStyleOptions } from "../markdown/style-options";
 import { persistOptionsToSource } from "../markdown/persistence";
-import { md5 } from "../thumbnail/md5";
-import { ensureThumbnailForFile } from "../thumbnail/thumbnail";
+import { ensureThumbnailForFile, getThumbPath } from "../thumbnail/thumbnail";
 import { createErrorDiv } from "./elements";
 import { createImage } from "./image";
 import { createContainer } from "./container";
 import { applySettingsToContainer } from "./layout";
 import { enableDragSort } from "./drag-sort";
-import { attachImageWrapperActions } from "./image-actions";
+import { attachImageWrapperActions, removeImageWrapperActions } from "./image-actions";
 import { getImagePathMatches } from "../markdown/image-syntax";
 
 // el -> 这个 el 上最近一次调用本处理器时创建的 container。
@@ -80,13 +78,9 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     const imgIdx = srcList.length;
                     srcList.push(originalSrc);
 
-                    // 缩略图路径（相对于 vault 根目录）
-                    // 使用源文件路径的 MD5 作为文件名，且不带扩展名：
-                    // <THUMBNAIL_PATH>/<md5(file.path)>
-                    // 例如：THUMBNAIL_PATH="assets/cache/"，原图为 "assets/1.png"
-                    // 最终缩略图写入路径为 "assets/cache/<md5>"
-                    const thumbKey = md5(file.path);
-                    const thumbPath = normalizePath(`${config.THUMBNAIL_PATH}${thumbKey}`);
+                    // 缩略图路径（相对于 vault 根目录），按源文件路径 + 目标分辨率哈希得到，
+                    // 详见 getThumbPath 注释。
+                    const thumbPath = getThumbPath(file.path);
                     // 缩略图文件对象
 
                     const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
@@ -127,7 +121,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
 
         // 编辑模式（Live Preview）：el 在处理器回调时尚未挂入 DOM，
         // 用 requestAnimationFrame 等待挂载完成后，再将 setting wrapper 移入
-        // .cm-preview-code-block，放在原生 edit-block-button 的左侧。
+        // 代码块自带的操作按钮栏，放在原生 edit-block-button 的左侧。
         window.requestAnimationFrame(() => {
             // 这一帧触发前，el 又被重新渲染过一次：本次 container 已经过期，整段跳过，
             // 避免把过期渲染的 settingWrapper/拖拽监听器接到已经摘除的 container 上。
@@ -135,24 +129,42 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
 
             const codeBlock = el.closest('.cm-preview-code-block');
             const settingWrapper = container.querySelector<HTMLElement>('.plugin-image-setting-outer');
-            if (codeBlock && settingWrapper) {
+            if (!codeBlock) {
+                // 阅读模式（非 Live Preview）：笔记本身不可编辑，图片组也不提供任何操作入口——
+                // 既不展示右上角的设置按钮，悬停单张图片时也不出现蒙层与「排除 / 删除」按钮。
+                settingWrapper?.remove();
+                removeImageWrapperActions(container);
+                return;
+            }
+            if (settingWrapper) {
                 // settingWrapper 会被移出 el、挂到 codeBlock 上，因此不受上面 el.empty() 的清理范围覆盖；
                 // 若同一个 codeBlock 此前已经挂过一份（例如本次是重渲染），需要先移除旧的，避免重复堆叠。
                 codeBlock.querySelectorAll('.plugin-image-setting-outer').forEach((old) => {
                     if (old !== settingWrapper) old.remove();
                 });
-                const editBtn = codeBlock.querySelector('.edit-block-button');
-                if (editBtn) {
-                    codeBlock.insertBefore(settingWrapper, editBtn);
+                // Obsidian 1.13 起，代码块的原生操作按钮统一放在
+                // .cm-preview-code-block > .embed-actions 里（每个按钮是一个 .embed-action），
+                // 显示/定位/淡入由官方 CSS 负责。把 wrapper 放进这个容器即可继承全套样式。
+                // 该容器在代码块 widget 建 DOM 时（postprocessor 之后）就已创建，这里必然拿得到。
+                const actionsEl = codeBlock.querySelector<HTMLElement>(':scope > .embed-actions');
+                const editBtn = actionsEl?.querySelector<HTMLElement>(':scope > .edit-block-button');
+                if (actionsEl) {
+                    // 与旁边的原生按钮统一观感：换掉阅读模式用的 clickable-icon，
+                    // 改用官方按钮栏的 .embed-action（尺寸、圆角、hover 高亮、移动端触控尺寸）
+                    const settingBtn = settingWrapper.querySelector<HTMLElement>('.plugin-image-setting-btn-container');
+                    settingBtn?.removeClass('clickable-icon');
+                    settingBtn?.addClass('embed-action');
+                }
+                if (actionsEl && editBtn) {
+                    actionsEl.insertBefore(settingWrapper, editBtn);
+                } else if (actionsEl) {
+                    actionsEl.appendChild(settingWrapper);
                 } else {
                     codeBlock.appendChild(settingWrapper);
                 }
-                // 编辑模式下启用图片拖拽排序
-                enableDragSort(container, plugin, ctx, el);
-            } else if (settingWrapper) {
-                // 阅读模式（非 Live Preview）：不展示操作按钮，直接移除 setting wrapper
-                settingWrapper.remove();
             }
+            // 编辑模式下启用图片拖拽排序
+            enableDragSort(container, plugin, ctx, el);
         });
     });
 }

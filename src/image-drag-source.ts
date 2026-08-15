@@ -2,7 +2,7 @@ import ImgRowPlugin from "main";
 import { MarkdownView } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { getImageMatches } from "./markdown/image-syntax";
-import { STANDALONE_IMAGE_DRAG_MIME, setCurrentDrag, clearCurrentDrag } from "./drag-state";
+import { STANDALONE_IMAGE_DRAG_MIME, setCurrentDrag } from "./drag-state";
 
 /** 根据 DOM 节点找到承载它的 Markdown 文件路径，用于校验拖拽源和落点必须同一个文件 */
 function getFilePathForNode(plugin: ImgRowPlugin, node: HTMLElement): string | null {
@@ -20,8 +20,11 @@ function getFilePathForNode(plugin: ImgRowPlugin, node: HTMLElement): string | n
  * 拖拽到已有的图片组中。只负责拖拽起点（dragstart/dragend），落点逻辑在 drag-sort.ts。
  */
 export function registerImageDragSource(plugin: ImgRowPlugin) {
-    const isEligibleImage = (target: EventTarget | null): target is HTMLImageElement => {
-        if (!(target instanceof HTMLImageElement)) return false;
+    // target 用 Node（而不是 EventTarget）承接，配合 .instanceOf() 做跨窗口安全的类型判断——
+    // 弹出窗口里每个 window 有各自的 HTMLImageElement 构造函数，裸 instanceof 会失效。
+    // 调用方传入的是 UIEvent.targetNode（Obsidian 的跨窗口安全扩展）而非裸的 e.target。
+    const isEligibleImage = (target: Node | null): target is HTMLImageElement => {
+        if (!target || !target.instanceOf(HTMLImageElement)) return false;
         if (!target.closest(".cm-content")) return false; // 仅 Live Preview
         if (target.closest(".plugin-image-wrapper")) return false; // 已经是图片组，跳过
         return true;
@@ -29,8 +32,8 @@ export function registerImageDragSource(plugin: ImgRowPlugin) {
 
     plugin.registerDomEvent(activeDocument, "dragstart", (e: DragEvent) => {
         if (!plugin.settings.enableDragToGroup) return;
-        if (!isEligibleImage(e.target)) return;
-        const img = e.target;
+        const img = e.targetNode;
+        if (!isEligibleImage(img)) return;
 
         const editorRoot = img.closest<HTMLElement>(".cm-editor");
         const view = editorRoot ? EditorView.findFromDOM(editorRoot) : null;
@@ -68,8 +71,9 @@ export function registerImageDragSource(plugin: ImgRowPlugin) {
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
     });
 
+    // currentDrag 本身的清空由 drag-state.ts 的 registerDragStateLifecycle 统一兜底，
+    // 这里的 dragend 只需处理自己引入的 DOM 残留。
     plugin.registerDomEvent(activeDocument, "dragend", () => {
-        clearCurrentDrag();
         // 兜底清理：正常情况下容器的 dragleave/drop 会自己摘掉高亮，
         // 这里防止极端情况下（比如拖拽被系统中途取消）残留高亮效果
         activeDocument.querySelectorAll(".plugin-image-container--drag-target").forEach(node => {

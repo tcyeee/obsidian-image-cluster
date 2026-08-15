@@ -1,7 +1,8 @@
 import ImgRowPlugin from "main";
 import { MarkdownPostProcessorContext } from "obsidian";
 import { persistReorderToSource, persistDragInsertToSource } from "../markdown/persistence";
-import { STANDALONE_IMAGE_DRAG_MIME, getCurrentDrag, GROUP_IMAGE_DRAG_MIME, setGroupDrag, clearGroupDrag } from "../drag-state";
+import { STANDALONE_IMAGE_DRAG_MIME, getCurrentDrag, GROUP_IMAGE_DRAG_MIME, setGroupDrag } from "../drag-state";
+import { collectWrapperImageLines } from "./elements";
 
 /** 在同一行内找离鼠标最近的图片，判断插到它前面还是后面；鼠标不在任何行的高度范围内时返回 null（由调用方决定兜底为追加到末尾）。 */
 function findRowInsertion(
@@ -58,7 +59,7 @@ export function enableDragSort(
         } else {
             container.appendChild(tempWrapper);
         }
-        void persistDragInsertToSource(container, plugin, ctx, el, drag.sourcePath, drag.lineIndex, drag.matchIndex).then(ok => {
+        void persistDragInsertToSource(collectWrapperImageLines(container), plugin, ctx, el, drag.sourcePath, drag.lineIndex, drag.matchIndex).then(ok => {
             if (ok) return;
             // 落盘失败（例如源图片行号在读取时已失效）：乐观插入的临时 wrapper 必须撤销，
             // 否则图片会同时出现在"已拖入的图片组"和"源位置"两个地方。
@@ -129,11 +130,11 @@ export function enableDragSort(
             }
         });
 
+        // groupDrag 本身的清空由 drag-state.ts 的 registerDragStateLifecycle 统一兜底。
         wrapper.addEventListener("dragend", () => {
             wrapper.classList.remove("plugin-image-dragging");
             clearIndicators();
             dragSrcEl = null;
-            clearGroupDrag();
         });
 
         wrapper.addEventListener("dragover", e => {
@@ -169,7 +170,7 @@ export function enableDragSort(
                 // 组内重排：拖拽源就是本容器中的某个 wrapper
                 if (dragSrcEl === wrapper) return;
                 container.insertBefore(dragSrcEl, insertBefore ? wrapper : wrapper.nextSibling);
-                void persistReorderToSource(container, plugin, ctx, el);
+                void persistReorderToSource(collectWrapperImageLines(container), plugin, ctx, el);
                 return;
             }
 

@@ -1,9 +1,9 @@
 import ImgRowPlugin from "main";
-import { MarkdownPostProcessorContext, TFile, normalizePath, setIcon } from "obsidian";
-import { config } from "../core/config";
-import { md5 } from "../thumbnail/md5";
+import { MarkdownPostProcessorContext, TFile, setIcon } from "obsidian";
+import { getThumbPath } from "../thumbnail/thumbnail";
 import { persistExcludeImageToSource, persistRemoveImageFromSource } from "../markdown/persistence";
 import { ConfirmDeleteImageModal } from "./confirm-delete-modal";
+import { collectWrapperImageLines } from "./elements";
 
 /**
  * 统计 vault 中所有指向 file 的链接/嵌入总数（含当前这一处引用）。
@@ -28,7 +28,7 @@ function excludeImageBelowGroup(
 ): void {
     const imgLine = wrapper.dataset.imgLine ?? "";
     wrapper.remove();
-    void persistExcludeImageToSource(container, plugin, ctx, el, imgLine);
+    void persistExcludeImageToSource(collectWrapperImageLines(container), plugin, ctx, el, imgLine);
 }
 
 /** 删除：原图已被移除，图片组内不能再保留指向它的这一行，直接从组内摘除（不回填到组下方）。 */
@@ -40,13 +40,12 @@ function removeImageFromGroup(
     el: HTMLElement,
 ): void {
     wrapper.remove();
-    void persistRemoveImageFromSource(container, plugin, ctx, el);
+    void persistRemoveImageFromSource(collectWrapperImageLines(container), plugin, ctx, el);
 }
 
 /** 删除缓存缩略图与原图文件（走系统/Obsidian 回收站，而非直接抹除，与核心「删除文件」命令保持一致）。 */
 async function deleteImageFile(plugin: ImgRowPlugin, file: TFile): Promise<void> {
-    const thumbKey = md5(file.path);
-    const thumbPath = normalizePath(`${config.THUMBNAIL_PATH}${thumbKey}`);
+    const thumbPath = getThumbPath(file.path);
     const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
     if (thumbFile instanceof TFile) {
         await plugin.app.fileManager.trashFile(thumbFile);
@@ -120,4 +119,17 @@ export function attachImageWrapperActions(
     actions.appendChild(excludeBtn);
     actions.appendChild(deleteBtn);
     wrapper.appendChild(actions);
+}
+
+/**
+ * 移除图片组内所有单图操作入口（悬停蒙层 + 排除 / 删除按钮）。
+ *
+ * 阅读模式（非 Live Preview）下笔记本身不可编辑，图片组也不应该提供任何编辑操作，
+ * 因此渲染完成后直接把这些元素摘掉；渲染时无法提前判断模式（此时 el 还没挂进文档），
+ * 所以统一「先挂载、确认是阅读模式后再移除」，与 setting 按钮的处理方式保持一致。
+ */
+export function removeImageWrapperActions(container: HTMLDivElement): void {
+    container
+        .querySelectorAll(".plugin-image-item-overlay, .plugin-image-item-actions")
+        .forEach((node) => node.remove());
 }

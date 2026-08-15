@@ -1,5 +1,5 @@
 import ImgRowPlugin from "main";
-import { TFile, normalizePath } from "obsidian";
+import { Notice, TFile, TFolder, normalizePath } from "obsidian";
 import { config } from "../core/config";
 import { detectContentRect } from "./content-rect";
 import { md5 } from "./md5";
@@ -9,6 +9,26 @@ import { md5 } from "./md5";
 // 同时保证「生成期间该代码块被重渲染、传入了一个新的 img 元素」时，
 // 新元素也能在生成完成后收到 src 更新，而不是只有第一次调用时传入的（可能已被移除的）元素收到。
 const generatingThumbnails = new Map<string, Set<HTMLImageElement>>();
+
+/**
+ * 缩略图实际生成的边长（正方形）：以 THUMBNAIL_SIZE（覆盖最大的 LARGE 展示尺寸）为基准，
+ * 乘以当前屏幕的 devicePixelRatio（封顶 2x，避免 3x 高密度屏把缓存文件撑得过大）。
+ * 三档展示尺寸 S/M/L 共用同一份缓存文件，只在 CSS 里缩小显示，因此只要这一份按最大
+ * 尺寸 × DPR 生成，S/M/L 在 Retina 屏下都能保持清晰。
+ */
+function getThumbnailTargetSide(): number {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  return Math.max(50, Math.round(config.THUMBNAIL_SIZE * dpr));
+}
+
+/**
+ * 缩略图缓存路径：THUMBNAIL_PATH + md5(file.path + 目标分辨率)。
+ * 把分辨率一起写入哈希输入，这样当 devicePixelRatio 变化（例如换到 Retina 屏）导致
+ * 目标分辨率变化时，会自动指向一个新的缓存文件而不是复用旧的低清晰度缩略图。
+ */
+export function getThumbPath(filePath: string): string {
+  return normalizePath(`${config.THUMBNAIL_PATH}${md5(`${filePath}@${getThumbnailTargetSide()}`)}`);
+}
 
 /**
  * 如果指定路径下还不存在缩略图，则：
@@ -49,6 +69,21 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
       return;
     }
 
+    // 兼容更早版本：分辨率信息加入缓存 key 之前，缓存路径是 md5(file.path)（不带分辨率后缀）。
+    // 引入分辨率后缀后，那批旧缓存不会再被任何路径引用，会变成永久孤儿。趁着这次要
+    // 重新生成缩略图，顺手把旧缓存清掉，避免 assets/cache/ 无限堆积。
+    const legacyThumbPath = normalizePath(`${config.THUMBNAIL_PATH}${md5(file.path)}`);
+    if (legacyThumbPath !== thumbPath) {
+      const legacyThumb = plugin.app.vault.getAbstractFileByPath(legacyThumbPath);
+      if (legacyThumb instanceof TFile) {
+        try {
+          await plugin.app.fileManager.trashFile(legacyThumb);
+        } catch (error: unknown) {
+          console.error("Failed to clean up legacy thumbnail cache", file.path, error);
+        }
+      }
+    }
+
     const originalSrc = plugin.app.vault.getResourcePath(file);
 
     const image = new Image();
@@ -66,8 +101,8 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
 
     const loadedImg = await loadPromise;
 
-    // 目标缩略图为正方形：以较短边为边长进行居中裁剪，然后缩放到 targetSize（带上下限）
-    const targetSide = Math.max(50, config.THUMBNAIL_SIZE);
+    // 目标缩略图为正方形：以较短边为边长进行居中裁剪，然后缩放到 targetSide
+    const targetSide = getThumbnailTargetSide();
     const { width, height } = loadedImg;
     if (!width || !height) return;
 
@@ -138,7 +173,7 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
 /**
  * 让缓存缩略图跟随原图的生命周期一起变化。
  *
- * 缩略图以 md5(file.path) 命名，天然和原图路径绑定。用户通过本插件自带的「删除」按钮
+ * 缩略图以 getThumbPath(file.path) 命名，天然和原图路径绑定。用户通过本插件自带的「删除」按钮
  * 删除图片时，image-actions.ts 会显式先删缓存再删原图；但如果用户是通过 Obsidian 原生
  * 方式（文件管理器重命名/移动/删除）操作原图，这两个动作都不会经过插件的删除逻辑——
  * 重命名后旧路径算出的缓存文件不再被任何原图对应，永久变成孤儿，且无从复用（新路径会
@@ -146,7 +181,7 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
  * 这里监听 vault 的 rename/delete 事件，让缓存跟着原图重命名/删除。
  */
 export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
-  const thumbPathFor = (path: string) => normalizePath(`${config.THUMBNAIL_PATH}${md5(path)}`);
+  const thumbPathFor = getThumbPath;
 
   plugin.registerEvent(
     plugin.app.vault.on("rename", (file, oldPath) => {
@@ -165,7 +200,7 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
 
         try {
           await plugin.app.vault.rename(oldThumb, newThumbPath);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error("Failed to migrate thumbnail cache after rename", oldPath, "->", file.path, error);
         }
       })();
@@ -182,10 +217,66 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
         if (!(thumb instanceof TFile)) return;
         try {
           await plugin.app.fileManager.trashFile(thumb);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error("Failed to clean up thumbnail cache after delete", file.path, error);
         }
       })();
     }),
   );
+}
+
+/**
+ * 手动扫描 THUMBNAIL_PATH 下的全部缓存文件，删除其中不再对应任何当前 vault 内原图的文件。
+ *
+ * 背景：registerThumbnailCacheLifecycle 只能覆盖"插件运行期间、经由 Obsidian 的
+ * rename/delete 事件触发"的原图变更。如果原图是在插件被禁用期间、或通过 vault 外部工具
+ * 被移动/删除的，对应缓存不会经过那两个监听器，只会在 assets/cache/ 里永久沉积。
+ *
+ * 这里做一次全量扫描：对 vault 中每个非缓存文件，按当前目标分辨率重新计算一遍
+ * "如果现在渲染它，期望的缓存路径是什么"，得到一份当前仍然有效的缓存路径集合；
+ * 不在这份集合里的缓存文件都视为孤儿——既包括原图已经不存在的，也包括原图还在、
+ * 但缓存是在其他分辨率（例如非 Retina 屏）下生成的旧文件，两者删除都是安全的：
+ * 下次渲染到对应图片时会按当前分辨率重新生成一份。
+ *
+ * @returns 实际删除的孤儿缓存文件数
+ */
+export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise<number> {
+  const cacheFolder = plugin.app.vault.getAbstractFileByPath(normalizePath(config.THUMBNAIL_PATH));
+  if (!(cacheFolder instanceof TFolder)) return 0;
+
+  const validThumbPaths = new Set<string>();
+  for (const file of plugin.app.vault.getFiles()) {
+    if (file.path.startsWith(config.THUMBNAIL_PATH)) continue;
+    validThumbPaths.add(getThumbPath(file.path));
+  }
+
+  let removed = 0;
+  for (const child of cacheFolder.children) {
+    if (!(child instanceof TFile) || validThumbPaths.has(child.path)) continue;
+    try {
+      await plugin.app.fileManager.trashFile(child);
+      removed++;
+    } catch (error: unknown) {
+      console.error("Failed to prune orphaned thumbnail cache", child.path, error);
+    }
+  }
+  return removed;
+}
+
+/** 注册命令面板命令，供用户手动触发 pruneOrphanedThumbnailCache 并看到结果反馈。 */
+export function registerPruneOrphanedThumbnailsCommand(plugin: ImgRowPlugin): void {
+  plugin.addCommand({
+    id: "prune-orphaned-thumbnail-cache",
+    name: "Clean up orphaned thumbnail cache",
+    callback: () => {
+      void (async () => {
+        const removed = await pruneOrphanedThumbnailCache(plugin);
+        new Notice(
+          removed > 0
+            ? `Removed ${removed} orphaned thumbnail${removed > 1 ? "s" : ""}.`
+            : "No orphaned thumbnails found.",
+        );
+      })();
+    },
+  });
 }

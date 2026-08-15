@@ -1,11 +1,11 @@
-import { config } from "./config";
+import { config, runtimeDefaults } from "./config";
 
 export class SettingOptions {
-    size: number = config.DEFAULT_SIZE;
-    radius: number = config.DEFAULT_RADIUS;
-    gap: number = config.DEFAULT_GAP;
-    shadow: boolean = config.DEFAULT_SHADOW;
-    border: boolean = config.DEFAULT_BORDER;
+    size: number = runtimeDefaults.size;
+    radius: number = runtimeDefaults.radius;
+    gap: number = runtimeDefaults.gap;
+    shadow: boolean = runtimeDefaults.shadow;
+    border: boolean = runtimeDefaults.border;
     hidden: boolean = config.DEFAULT_HIDDEN;
     limit: boolean = config.DEFAULT_LIMIT;
     paddingLeft: number = config.DEFAULT_PADDING_LEFT;

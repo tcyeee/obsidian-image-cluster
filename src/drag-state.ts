@@ -1,3 +1,4 @@
+import ImgRowPlugin from "main";
 import { MarkdownPostProcessorContext } from "obsidian";
 
 /**
@@ -81,4 +82,20 @@ export function getGroupDrag(): GroupDragPayload | null {
 
 export function clearGroupDrag(): void {
     currentGroupDrag = null;
+}
+
+/**
+ * 这两份拖拽状态是跨文件共享的模块级单例（image-drag-source.ts / drag-sort.ts /
+ * editor-drop-target.ts 都会读写），此前每个消费方各自在自己的 dragend 监听器里调用
+ * clearCurrentDrag()/clearGroupDrag() 兜底清理，同一份清理逻辑散落、重复在三处。
+ * 状态的生命周期管理收归状态自身所在的模块：这里注册唯一一个 document 级别的
+ * dragend 监听器，统一负责兜底清空——不管这次拖拽正常结束、被浏览器/系统中途取消，
+ * 还是 drop 目标根本没有消费这份状态，dragend 之后这两个模块变量都不应该继续存活。
+ * 各消费方的 dragend 处理器里不再需要重复调用 clear*，只处理各自的 DOM 清理即可。
+ */
+export function registerDragStateLifecycle(plugin: ImgRowPlugin): void {
+    plugin.registerDomEvent(activeDocument, "dragend", () => {
+        clearCurrentDrag();
+        clearGroupDrag();
+    });
 }

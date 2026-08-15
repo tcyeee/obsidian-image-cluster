@@ -5,7 +5,8 @@ import { registerHoverGroupTrigger } from "./src/hover-group-trigger";
 import { registerImageDragSource } from "./src/image-drag-source";
 import { registerEditorDropTarget } from "./src/editor-drop-target";
 import { ImgRowPluginSettings, DEFAULT_SETTINGS, ImgRowSettingTab, applySettingsToConfig } from "./src/settings";
-import { registerThumbnailCacheLifecycle } from "./src/thumbnail/thumbnail";
+import { registerThumbnailCacheLifecycle, registerPruneOrphanedThumbnailsCommand } from "./src/thumbnail/thumbnail";
+import { registerDragStateLifecycle } from "./src/drag-state";
 
 export default class ImgRowPlugin extends Plugin {
 	settings: ImgRowPluginSettings;
@@ -27,6 +28,10 @@ export default class ImgRowPlugin extends Plugin {
 		this.addSettingTab(new ImgRowSettingTab(this.app, this));
 		// 原图被原生方式重命名/删除时，同步迁移/清理对应的缓存缩略图，避免孤儿文件
 		registerThumbnailCacheLifecycle(this);
+		// 手动清理不再被任何原图引用的缩略图缓存（覆盖插件未运行期间产生的孤儿文件）
+		registerPruneOrphanedThumbnailsCommand(this);
+		// 统一兜底清空拖拽相关的模块级状态（独立图片拖入组 / 组内图片拖出）
+		registerDragStateLifecycle(this);
 	}
 
 	async loadSettings() {

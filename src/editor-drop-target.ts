@@ -69,8 +69,10 @@ export function registerEditorDropTarget(plugin: ImgRowPlugin): void {
         void persistDragOutToSource(groupDrag, plugin, target.lineIndex, target.before);
     });
 
+    // groupDrag 本身的清空由 drag-state.ts 的 registerDragStateLifecycle 统一兜底，
+    // 这里的 dragend 只需处理自己引入的 DOM 残留（drop 处理器里的 clearGroupDrag()
+    // 是"用完立即清空"的语义，与这里的兜底不冲突，两者都保留）。
     plugin.registerDomEvent(activeDocument, "dragend", () => {
         clearLineIndicators();
-        clearGroupDrag();
     });
 }

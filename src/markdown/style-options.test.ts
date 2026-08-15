@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { config } from "../core/config";
+import { runtimeDefaults } from "../core/config";
 import { SettingOptions } from "../core/domain";
 import { parseStyleOptions } from "./style-options";
 
 describe("parseStyleOptions", () => {
     it("returns defaults when there is no config line", () => {
         const options = parseStyleOptions("![[a.png]]\n![[b.png]]");
-        expect(options.size).toBe(config.DEFAULT_SIZE);
-        expect(options.shadow).toBe(config.DEFAULT_SHADOW);
-        expect(options.border).toBe(config.DEFAULT_BORDER);
+        expect(options.size).toBe(runtimeDefaults.size);
+        expect(options.shadow).toBe(runtimeDefaults.shadow);
+        expect(options.border).toBe(runtimeDefaults.border);
     });
 
     it("parses every recognized key from the config line", () => {
@@ -26,9 +26,9 @@ describe("parseStyleOptions", () => {
 
     it("ignores out-of-range numeric values, keeping the default", () => {
         const options = parseStyleOptions("size=9999&gap=-5&radius=9999;;\n![[a.png]]");
-        expect(options.size).toBe(config.DEFAULT_SIZE);
-        expect(options.gap).toBe(config.DEFAULT_GAP);
-        expect(options.radius).toBe(config.DEFAULT_RADIUS);
+        expect(options.size).toBe(runtimeDefaults.size);
+        expect(options.gap).toBe(runtimeDefaults.gap);
+        expect(options.radius).toBe(runtimeDefaults.radius);
     });
 
     it("ignores malformed key=value pairs instead of throwing", () => {

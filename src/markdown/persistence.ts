@@ -4,6 +4,13 @@ import { EditorView } from "@codemirror/view";
 import { SettingOptions } from "../core/domain";
 import { GroupDragPayload } from "../drag-state";
 import { removeImageFromLine } from "./image-syntax";
+import {
+    buildInnerLines,
+    buildInnerSourceFromOptions,
+    buildShrunkGroupBlockLines,
+    findConfigLine,
+    findImgsBlockBySnapshot,
+} from "./block-text";
 
 /**
  * 按文件路径排队执行「读整篇文件 -> 计算新内容 -> 写回」的持久化操作，确保同一个文件的
@@ -25,6 +32,14 @@ function enqueueFileOp<T>(path: string, op: () => Promise<T>): Promise<T> {
     // 无论成功失败都要让队列继续往前走，否则一次失败会卡住这个文件后续所有操作
     fileOpQueues.set(path, result.then(() => undefined, () => undefined));
     return result;
+}
+
+/**
+ * 操作失败时统一提示用户——这些函数都是在响应一次明确的用户交互（改设置/拖拽/排除/删除），
+ * 静默失败会让用户以为操作生效了，实际文件内容并未改变。
+ */
+function notifyPersistFailure(message: string): void {
+    new Notice(message);
 }
 
 /**
@@ -96,6 +111,41 @@ async function writeFileContent(
 }
 
 /**
+ * 定位并读取一个 imgs 代码块所在的「文件 + 全文内容 + 按行切分 + 代码块的 fence 行号」。
+ * 这是几乎所有持久化函数共用的前置步骤，抽出来避免每个函数重复一遍
+ * getSectionInfo -> 取 TFile -> 读内容 -> split 行 -> 校验边界。
+ *
+ * fenceStart 是 ```imgs 所在行，fenceEnd 是 ``` 所在行（均为 0 基行号）。
+ */
+interface BlockContext {
+    file: TFile;
+    content: string;
+    lines: string[];
+    fenceStart: number;
+    fenceEnd: number;
+}
+
+async function loadBlockContext(
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+): Promise<BlockContext | null> {
+    const section = ctx.getSectionInfo(el);
+    if (!section) return null;
+
+    const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(file instanceof TFile)) return null;
+
+    const content = await readCurrentContent(plugin, file, el);
+    const lines = content.split("\n");
+
+    const { lineStart: fenceStart, lineEnd: fenceEnd } = section;
+    if (fenceStart < 0 || fenceEnd >= lines.length || fenceStart > fenceEnd) return null;
+
+    return { file, content, lines, fenceStart, fenceEnd };
+}
+
+/**
  * 将当前 option 写回到对应 Markdown 文档的代码块中（更新/插入配置行）。
  *
  * 约定格式：
@@ -115,26 +165,15 @@ async function writeFileContent(
  */
 export async function persistOptionsToSource(option: SettingOptions, plugin: ImgRowPlugin, ctx: MarkdownPostProcessorContext, el: HTMLElement): Promise<void> {
     await enqueueFileOp(ctx.sourcePath, async () => {
-        const section = ctx.getSectionInfo(el);
-        if (!section) return;
+        const block = await loadBlockContext(plugin, ctx, el);
+        if (!block) {
+            notifyPersistFailure("Could not save image group settings — please try again");
+            return;
+        }
+        const { file, content, lines, fenceStart, fenceEnd } = block;
 
-        // 通过 ctx.sourcePath 拿到真正的文件，而不是依赖当前激活视图
-        const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-        if (!(file instanceof TFile)) return;
-
-        // 读取整篇文档文本
-        const content = await readCurrentContent(plugin, file, el);
-        const lines = content.split("\n");
-
-        // 代码块内部内容所在的行范围：
-        // section.lineStart    -> ```imgs 这一行
-        // section.lineStart+1  -> 代码块内部第一行
-        // section.lineEnd      -> ``` 这一行
-        const innerStart = section.lineStart + 1;
-        const innerEnd = section.lineEnd;
-
-        if (innerStart >= innerEnd || innerStart < 0 || innerEnd > lines.length) return;
-
+        const innerStart = fenceStart + 1;
+        const innerEnd = fenceEnd;
         const currentInner = lines.slice(innerStart, innerEnd).join("\n");
         const newInner = buildInnerSourceFromOptions(option, currentInner);
         if (newInner === currentInner) return;
@@ -155,78 +194,37 @@ export async function persistOptionsToSource(option: SettingOptions, plugin: Img
 }
 
 /**
- * 根据当前配置构造（或更新）代码块内部的文本内容。
- * 会保留原有的图片 Markdown，只替换/添加配置行。
- *
- * @param option - 配置对象
- * @param currentInner - 代码块内部内容
- * @returns 构造后的代码块内部内容
- */
-function buildInnerSourceFromOptions(option: SettingOptions, currentInner: string): string {
-    const styleLine = option.buildStyleLineConfig();
-    const endSign = ";;";
-
-    // 原来没有任何配置，直接在最前面插入一行配置
-    if (!currentInner.includes(endSign)) {
-        const trimmed = currentInner.replace(/^\s*/, "");
-        return `${styleLine}${endSign}\n${trimmed}`;
-    }
-
-    // 原来有配置，则删掉原有配置，写入新的配置
-    const idx = currentInner.indexOf(endSign);
-    if (idx === -1) {
-        // 理论上不会走到这里，兜底按「无配置」处理
-        const trimmed = currentInner.replace(/^\s*/, "");
-        return `${styleLine}${endSign}\n${trimmed}`;
-    }
-
-    // 去掉旧配置与分隔符，仅保留之后的图片等内容
-    const after = currentInner.slice(idx + endSign.length);
-    const imagesPart = after.replace(/^[ \t\r\n]*/, "");
-    return `${styleLine}${endSign}\n${imagesPart}`;
-}
-
-/**
  * 将当前 DOM 中 wrapper 的排列顺序写回对应 Markdown 文件的代码块。
  * 整个读-改-写过程通过 enqueueFileOp 按文件路径排队，避免和同一文件上的其他持久化调用交叉。
+ *
+ * @param imageLines - 按目标顺序排列的图片 Markdown 行（调用方从当前 DOM 顺序收集，
+ *   持久化层本身不接触 DOM，只负责文本层面的读改写）。
  */
 export async function persistReorderToSource(
-    container: HTMLDivElement,
+    imageLines: string[],
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
 ): Promise<void> {
     await enqueueFileOp(ctx.sourcePath, async () => {
-        const section = ctx.getSectionInfo(el);
-        if (!section) return;
+        const block = await loadBlockContext(plugin, ctx, el);
+        if (!block) {
+            notifyPersistFailure("Could not save the new image order — please try again");
+            return;
+        }
+        const { file, content, lines, fenceStart, fenceEnd } = block;
 
-        const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-        if (!(file instanceof TFile)) return;
+        const innerStart = fenceStart + 1;
+        const innerEnd = fenceEnd;
+        const configLine = findConfigLine(lines.slice(innerStart, innerEnd));
 
-        const content = await readCurrentContent(plugin, file, el);
-        const lines = content.split("\n");
+        if (imageLines.length === 0) return;
 
-        const innerStart = section.lineStart + 1;
-        const innerEnd = section.lineEnd;
-        if (innerStart >= innerEnd || innerStart < 0 || innerEnd > lines.length) return;
-
-        const innerLines = lines.slice(innerStart, innerEnd);
-
-        // 保留配置行（含 ;; 的行）
-        const configLine = innerLines.find(l => l.includes(";;")) ?? null;
-
-        // 按 DOM 当前顺序读取各 wrapper 存储的原始 markdown 图片行
-        const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
-        const newImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
-        if (newImageLines.length === 0) return;
-
-        const newInner = configLine
-            ? `${configLine}\n${newImageLines.join("\n")}`
-            : newImageLines.join("\n");
+        const newInner = buildInnerLines(configLine, imageLines);
 
         const newLines = [
             ...lines.slice(0, innerStart),
-            ...newInner.split("\n"),
+            ...newInner,
             ...lines.slice(innerEnd),
         ];
 
@@ -235,62 +233,33 @@ export async function persistReorderToSource(
 }
 
 /**
- * 根据剩余图片行数，计算图片组代码块收缩后的新内容：
- * 剩 0 张则整个代码块一并删除，剩 1 张则拆包为普通图片行，2 张及以上保留 fence 并重建内部内容。
- * persistRemoveImageFromSource 与 persistExcludeImageToSource 共用这份收缩规则
- * （与 persistDragOutToSource 中的规则保持一致）。
- */
-function buildShrunkGroupBlockLines(
-    lines: string[],
-    lineStart: number,
-    lineEnd: number,
-    remainingImageLines: string[],
-): string[] {
-    if (remainingImageLines.length === 0) return [];
-    if (remainingImageLines.length === 1) return [remainingImageLines[0]];
-
-    const innerLines = lines.slice(lineStart + 1, lineEnd);
-    const configLine = innerLines.find(l => l.includes(";;")) ?? null;
-    const newInner = configLine ? [configLine, ...remainingImageLines] : remainingImageLines;
-    return [lines[lineStart], ...newInner, lines[lineEnd]];
-}
-
-/**
  * 从图片组中永久移除一张图片（不重新插入到任何位置），用于「删除」按钮在原图被删除后
  * 同步清理组内对应的那一行——原图已经不存在，不能再保留指向它的 Markdown 行。
  * 整个读-改-写过程通过 enqueueFileOp 按文件路径排队，避免和同一文件上的其他持久化调用交叉。
  *
- * @param container - 图片组容器；调用方需在调用前已将被移除的 wrapper 从 DOM 中摘除，
- *   剩余顺序按当前 DOM 顺序写回。
+ * @param remainingImageLines - 移除后剩余的图片 Markdown 行，按目标顺序排列
+ *   （调用方需在调用前已将被移除的 wrapper 从 DOM 中摘除，再按当前 DOM 顺序收集）。
  */
 export async function persistRemoveImageFromSource(
-    container: HTMLDivElement,
+    remainingImageLines: string[],
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
 ): Promise<void> {
     await enqueueFileOp(ctx.sourcePath, async () => {
-        const section = ctx.getSectionInfo(el);
-        if (!section) return;
+        const block = await loadBlockContext(plugin, ctx, el);
+        if (!block) {
+            notifyPersistFailure("Could not remove the image — please try again");
+            return;
+        }
+        const { file, content, lines, fenceStart, fenceEnd } = block;
 
-        const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-        if (!(file instanceof TFile)) return;
-
-        const content = await readCurrentContent(plugin, file, el);
-        const lines = content.split("\n");
-
-        const { lineStart, lineEnd } = section;
-        if (lineStart < 0 || lineEnd >= lines.length || lineStart > lineEnd) return;
-
-        // 按 DOM 当前顺序（调用方已移除被删除的 wrapper）读取剩余图片行
-        const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
-        const remainingImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
-        const newBlockLines = buildShrunkGroupBlockLines(lines, lineStart, lineEnd, remainingImageLines);
+        const newBlockLines = buildShrunkGroupBlockLines(lines, fenceStart, fenceEnd, remainingImageLines);
 
         const newLines = [
-            ...lines.slice(0, lineStart),
+            ...lines.slice(0, fenceStart),
             ...newBlockLines,
-            ...lines.slice(lineEnd + 1),
+            ...lines.slice(fenceEnd + 1),
         ];
 
         await writeFileContent(plugin, file, el, content, newLines.join("\n"));
@@ -303,42 +272,35 @@ export async function persistRemoveImageFromSource(
  * 组内剩余图片的收缩规则见 buildShrunkGroupBlockLines。
  * 整个读-改-写过程通过 enqueueFileOp 按文件路径排队，避免和同一文件上的其他持久化调用交叉。
  *
- * @param container - 图片组容器；调用方需在调用前已将被排除的 wrapper 从 DOM 中摘除，
- *   剩余顺序按当前 DOM 顺序写回。
+ * @param remainingImageLines - 排除后剩余的图片 Markdown 行，按目标顺序排列
+ *   （调用方需在调用前已将被排除的 wrapper 从 DOM 中摘除，再按当前 DOM 顺序收集）。
  * @param excludedImageLine - 被排除图片的原始 Markdown 行（wrapper.dataset.imgLine）
  */
 export async function persistExcludeImageToSource(
-    container: HTMLDivElement,
+    remainingImageLines: string[],
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
     excludedImageLine: string,
 ): Promise<void> {
     await enqueueFileOp(ctx.sourcePath, async () => {
-        const section = ctx.getSectionInfo(el);
-        if (!section) return;
+        const block = await loadBlockContext(plugin, ctx, el);
+        if (!block) {
+            notifyPersistFailure("Could not remove the image from the group — please try again");
+            return;
+        }
+        const { file, content, lines, fenceStart, fenceEnd } = block;
 
-        const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-        if (!(file instanceof TFile)) return;
-
-        const content = await readCurrentContent(plugin, file, el);
-        const lines = content.split("\n");
-
-        const { lineStart, lineEnd } = section;
-        if (lineStart < 0 || lineEnd >= lines.length || lineStart > lineEnd) return;
-
-        const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
-        const remainingImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
-        const newBlockLines = buildShrunkGroupBlockLines(lines, lineStart, lineEnd, remainingImageLines);
+        const newBlockLines = buildShrunkGroupBlockLines(lines, fenceStart, fenceEnd, remainingImageLines);
 
         // 被排除的图片放到图片组下方，上下各留一行空行
         const excludedLines = ["", excludedImageLine, ""];
 
         const newLines = [
-            ...lines.slice(0, lineStart),
+            ...lines.slice(0, fenceStart),
             ...newBlockLines,
             ...excludedLines,
-            ...lines.slice(lineEnd + 1),
+            ...lines.slice(fenceEnd + 1),
         ];
 
         await writeFileContent(plugin, file, el, content, newLines.join("\n"));
@@ -351,7 +313,8 @@ export async function persistExcludeImageToSource(
  * 整个读-改-写过程通过 enqueueFileOp 按文件路径排队，避免和同一文件上的其他持久化调用交叉
  * ——这也是连续快速拖入多张图片时不再触发「外部修改」合并、导致渲染错乱的关键。
  *
- * @param container - 目标图片组的容器（DOM 顺序即最终写回顺序，含新拖入的临时 wrapper）
+ * @param imageLines - 目标图片组按目标顺序排列的图片 Markdown 行（含新拖入的这一张；
+ *   调用方从当前 DOM 顺序收集，持久化层本身不接触 DOM）
  * @param sourcePath - 源图片所在文件路径；必须与目标图片组所在文件（ctx.sourcePath）一致，
  *   否则说明是跨文件拖拽（暂不支持），直接放弃，避免删错文件里的行
  * @param sourceLineIndex - 源图片所在行的行号（0 基，落盘前的文件行号）
@@ -362,7 +325,7 @@ export async function persistExcludeImageToSource(
  *   DOM 中移除——否则会出现"图片显示进了图片组，但源位置的图片也没消失"的重复图片问题。
  */
 export async function persistDragInsertToSource(
-    container: HTMLDivElement,
+    imageLines: string[],
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
@@ -373,21 +336,22 @@ export async function persistDragInsertToSource(
     if (sourcePath !== ctx.sourcePath) return false;
 
     return enqueueFileOp(ctx.sourcePath, async () => {
-        const section = ctx.getSectionInfo(el);
-        if (!section) return false;
-
-        const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-        if (!(file instanceof TFile)) return false;
-
-        const content = await readCurrentContent(plugin, file, el);
-        const lines = content.split("\n");
-        if (sourceLineIndex < 0 || sourceLineIndex >= lines.length) return false;
+        const block = await loadBlockContext(plugin, ctx, el);
+        if (!block) {
+            notifyPersistFailure("Could not move the image into the group — please try again");
+            return false;
+        }
+        const { file, content, lines, fenceStart, fenceEnd } = block;
+        if (sourceLineIndex < 0 || sourceLineIndex >= lines.length) {
+            notifyPersistFailure("Could not move the image into the group — please try again");
+            return false;
+        }
 
         // 只移除源图片所在行里被拖走的这一张；若移除后该行再无有意义内容（忽略列表标记），
         // 才把整行一并删除——此时如果它在目标代码块之前，代码块的行号范围要整体减一。
         const { text: remainingLineText, empty } = removeImageFromLine(lines[sourceLineIndex], sourceMatchIndex);
-        let innerStart = section.lineStart + 1;
-        let innerEnd = section.lineEnd;
+        let innerStart = fenceStart + 1;
+        let innerEnd = fenceEnd;
         if (empty) {
             lines.splice(sourceLineIndex, 1);
             if (sourceLineIndex < innerStart) {
@@ -399,58 +363,20 @@ export async function persistDragInsertToSource(
         }
 
         if (innerStart >= innerEnd || innerStart < 0 || innerEnd > lines.length) return false;
+        if (imageLines.length === 0) return false;
 
-        const innerLines = lines.slice(innerStart, innerEnd);
-        const configLine = innerLines.find(l => l.includes(";;")) ?? null;
-
-        // 按 DOM 当前顺序读取各 wrapper（含新拖入的临时 wrapper）存储的原始 markdown 图片行
-        const wrappers = Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"));
-        const newImageLines = wrappers.map(w => w.dataset.imgLine).filter(Boolean) as string[];
-        if (newImageLines.length === 0) return false;
-
-        const newInner = configLine
-            ? `${configLine}\n${newImageLines.join("\n")}`
-            : newImageLines.join("\n");
+        const configLine = findConfigLine(lines.slice(innerStart, innerEnd));
+        const newInner = buildInnerLines(configLine, imageLines);
 
         const newLines = [
             ...lines.slice(0, innerStart),
-            ...newInner.split("\n"),
+            ...newInner,
             ...lines.slice(innerEnd),
         ];
 
         await writeFileContent(plugin, file, el, content, newLines.join("\n"));
         return true;
     });
-}
-
-/**
- * 在文件行数组中查找内部图片行（去掉配置行后）与给定快照完全一致的 imgs 代码块。
- * 用于 el/ctx 失效时的兜底定位——不依赖任何 DOM 引用，纯粹基于拖拽开始时记录的文本内容。
- */
-function findImgsBlockBySnapshot(
-    lines: string[],
-    imageLinesSnapshot: string[],
-): { fenceStart: number; fenceEnd: number } | null {
-    for (let i = 0; i < lines.length; i++) {
-        if (lines[i].trim() !== "```imgs") continue;
-        let fenceEnd = -1;
-        for (let j = i + 1; j < lines.length; j++) {
-            if (lines[j].trim() === "```") {
-                fenceEnd = j;
-                break;
-            }
-        }
-        if (fenceEnd === -1) continue;
-
-        const innerImageLines = lines.slice(i + 1, fenceEnd).filter(l => !l.includes(";;"));
-        const matches =
-            innerImageLines.length === imageLinesSnapshot.length &&
-            innerImageLines.every((l, idx) => l === imageLinesSnapshot[idx]);
-        if (matches) return { fenceStart: i, fenceEnd };
-
-        i = fenceEnd;
-    }
-    return null;
 }
 
 /**
@@ -485,7 +411,7 @@ export async function persistDragOutToSource(
             : findImgsBlockBySnapshot(lines, groupDrag.imageLinesSnapshot);
 
         if (!located) {
-            new Notice("拖出图片失败：找不到原图片组，请重试一次");
+            notifyPersistFailure("Could not move the image out — the original group could not be found, please try again");
             return;
         }
         const { fenceStart, fenceEnd } = located; // fenceStart: ```imgs 这一行；fenceEnd: ``` 这一行
@@ -495,29 +421,12 @@ export async function persistDragOutToSource(
         // editor-drop-target.ts 已经在 DOM 层面排除了落在图片组容器内部的情况，这里是防御）
         if (targetLineIndex >= fenceStart && targetLineIndex <= fenceEnd) return;
 
-        const innerStart = fenceStart + 1;
-        const innerEnd = fenceEnd;
-        const innerLines = lines.slice(innerStart, innerEnd);
-        const configLine = innerLines.find(l => l.includes(";;")) ?? null;
-
         // 剩余图片直接由拖拽开始时记录的快照计算（按下标而不是按文本内容剔除被拖出的那一张，
         // 避免组内出现完全相同的图片行时被误删多个）。拖拽过程中不可能再发生另一次组内重排
         // （同一时刻只能有一个拖拽在进行），所以快照顺序足以代表当前状态，不再依赖可能已经
         // 过期的 DOM（groupDrag.container/wrapper）。
         const remainingImageLines = groupDrag.imageLinesSnapshot.filter((_, idx) => idx !== groupDrag.draggedIndex);
-
-        let newBlockLines: string[];
-        if (remainingImageLines.length === 0) {
-            // 图片组被掏空：整个代码块一并删除
-            newBlockLines = [];
-        } else if (remainingImageLines.length === 1) {
-            // 只剩 1 张：自动拆包为一行普通图片，不再保留代码块
-            newBlockLines = [remainingImageLines[0]];
-        } else {
-            // 仍有 2 张及以上：保留 fence，重建内部内容
-            const newInner = configLine ? [configLine, ...remainingImageLines] : remainingImageLines;
-            newBlockLines = [lines[fenceStart], ...newInner, lines[fenceEnd]];
-        }
+        const newBlockLines = buildShrunkGroupBlockLines(lines, fenceStart, fenceEnd, remainingImageLines);
 
         const originalBlockLength = fenceEnd - fenceStart + 1;
         const delta = newBlockLines.length - originalBlockLength;

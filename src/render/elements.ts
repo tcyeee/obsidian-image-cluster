@@ -121,6 +121,18 @@ function createSettingCheckbox(settingKey: "border" | "shadow" | "hidden" | "lim
 
 
 /**
+ * 按当前 DOM 顺序收集容器内各图片 wrapper 保存的原始 Markdown 行。
+ * 供拖拽排序/排除/删除/拖入等操作在落盘前，把「渲染层的 DOM 顺序」转换成
+ * 「持久化层需要的一份普通字符串数组」——persistence.ts 本身不直接查询 DOM，
+ * 只接收这份数组，保持 markdown 读改写逻辑与 render 层的 DOM 结构解耦。
+ */
+export function collectWrapperImageLines(container: HTMLDivElement): string[] {
+    return Array.from(container.querySelectorAll<HTMLElement>(".plugin-image-wrapper"))
+        .map(w => w.dataset.imgLine)
+        .filter((line): line is string => !!line);
+}
+
+/**
  * 创建错误提示元素
  * 
  * @param option - 配置对象

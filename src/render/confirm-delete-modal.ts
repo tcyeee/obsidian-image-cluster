@@ -33,7 +33,7 @@ export class ConfirmDeleteImageModal extends Modal {
                 }))
             .addButton(btn => btn
                 .setButtonText("Delete original anyway")
-                .setWarning()
+                .setDestructive()
                 .onClick(() => {
                     this.close();
                     this.onChoice(true);
