@@ -1,5 +1,18 @@
 # obsidian-image-cluster 更新日志
 
+## 1.4.1 · 2026-08-15
+
+- Replaced `display: contents` on the settings-button wrapper with a shrink-to-fit flex box: the layout is identical, but `display: contents` is only partially supported by the Electron build Obsidian ships and was flagged during plugin review
+- Narrowed the orphaned-thumbnail-cache scan to image files only, so the plugin no longer reads the paths of notes and other attachments while looking for stale cache entries
+- The delete-confirmation dialog now uses Obsidian's native modal title bar instead of a hand-built heading
+- Rewrote the README and its Chinese translation with clearer installation instructions
+- 设置按钮的包装元素改用「恰好包住按钮」的 flex 盒子替代 `display: contents`：排版结果完全一致，但 `display: contents` 在 Obsidian 当前的 Electron 版本里只是部分支持，提交审核时会被标记
+- 清理孤儿缩略图缓存时只遍历图片文件，不再读取笔记和其他附件的路径
+- 删除确认弹窗改用 Obsidian 原生的弹窗标题栏，不再自己拼标题元素
+- 重写 README 及中文版，安装步骤更清晰
+
+---
+
 ## 1.4.0 · 2026-08-15
 
 - Adapted to Obsidian 1.13: both injected buttons now live in the native `.embed-actions` bar next to the edit button, inheriting its positioning, fade-in and mobile touch sizing — minAppVersion is therefore raised to 1.13.4
