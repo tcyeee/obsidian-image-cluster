@@ -463,60 +463,52 @@
    与旁边的原生按钮完全一致。所以这里刻意不写任何规则——
    .plugin-image-group-action 只作为标记类存在，便于主题/用户按需覆盖。 */
 
+/* ── 悬停操作按钮栏的统一背景板 ──
+   Obsidian 1.13 的操作按钮栏统一是 .embed-actions（内含若干 .embed-action），
+   但官方只给「图片 embed」的那一份加了毛玻璃背景板：
+     app.css → `.image-embed .embed-actions { background-color/border-radius/padding/box-shadow/backdrop-filter }`
+   代码块的按钮栏、以及插件自绘的按钮栏都拿不到这份声明，于是同一篇笔记里
+   悬停单张图片和悬停图片组会看到两种风格。这里把官方那份声明按原样复用到两处：
+     1. .plugin-image-embed-actions —— imgs 代码块自带的按钮栏（设置 + 编辑源码），
+        标记类由 src/render/processor.ts 打在官方的 .embed-actions 上；
+     2. .plugin-image-item-actions —— 组内单张缩略图悬停时出现的「排除 / 删除」按钮栏。
+   取值全部走官方 body 级 token（--embed-actions-*，1.13 起提供，
+   不低于 manifest 里声明的 minAppVersion），主题改了这套 token 时两处一起跟随。
+   唯独不抄 corner-shape：那是仅供 squircle 主题使用的新属性，
+   插件提交审核会报 "Unexpected browser feature"。 */
+.plugin-image-embed-actions,
+.plugin-image-item-actions {
+    padding: var(--embed-actions-padding);
+    border-radius: var(--embed-actions-radius);
+    background-color: var(--embed-actions-background);
+    box-shadow: var(--embed-actions-shadow);
+    backdrop-filter: var(--embed-actions-blur);
+}
+
 /* ── 图片组内单张图片的操作按钮（排除 / 删除，悬停缩略图时出现） ──
-   悬停时仅图片下半部分变暗，呈现从下到上的渐变效果（而非整张图变暗），
-   两个按钮横向居中、纵向靠下，叠在蒙层之上；蒙层与按钮均带淡入 + 位移动画。 */
-.plugin-image-item-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.25) 35%, rgba(0, 0, 0, 0) 65%);
-    border-radius: inherit;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
-    z-index: 3;
-}
-
-.plugin-image-wrapper:hover .plugin-image-item-overlay {
-    opacity: 1;
-}
-
+   缩略图不是官方的 .image-embed，拿不到官方 `.embed-actions` 的定位与淡入规则
+   （那条规则限定在 .markdown-source-view.mod-cm6 .embed-actions），
+   所以这里照搬一份：右上角、横向排列、悬停淡入，内边距与图片 embed 上的按钮栏一致。
+   按钮本身直接挂官方的 .embed-action 类（见 image-actions.ts），
+   尺寸 / 圆角 / hover 高亮 / 移动端触控尺寸都不需要插件再写。 */
 .plugin-image-item-actions {
     position: absolute;
-    left: 50%;
-    bottom: 8px;
-    transform: translate(-50%, 6px);
+    top: var(--size-4-2);
+    inset-inline-end: var(--size-4-2);
     display: flex;
-    gap: 8px;
+    gap: var(--size-2-1);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.25s ease, transform 0.25s ease;
+    transition: opacity 0.07s ease-out;
     z-index: 4;
 }
 
 .plugin-image-wrapper:hover .plugin-image-item-actions {
     opacity: 1;
     pointer-events: auto;
-    transform: translate(-50%, 0);
 }
 
-.plugin-image-item-action-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: var(--radius-s);
-    background-color: var(--background-primary);
-    color: var(--text-muted);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-}
-
-.plugin-image-item-action-btn:hover {
-    color: var(--text-normal);
-    background-color: var(--background-secondary);
-}
-
+/* 官方按钮没有危险色；删除是不可逆操作，保留一个红色 hover 作为提示 */
 .plugin-image-item-action-btn--danger:hover {
     color: var(--text-error, #e93147);
 }

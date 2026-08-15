@@ -54,7 +54,12 @@ async function deleteImageFile(plugin: ImgRowPlugin, file: TFile): Promise<void>
 }
 
 /**
- * 给图片组中的单张图片挂载 hover 时出现的暗化蒙层，以及「排除」「删除」按钮。
+ * 给图片组中的单张图片挂载 hover 时出现的「排除」「删除」按钮。
+ *
+ * 按钮栏刻意做成和官方「悬停单张图片 embed 时右上角那排按钮」同一个样子：
+ * 容器复用官方 .embed-actions 的定位与毛玻璃背景板（见 styles.css），
+ * 每个按钮直接挂官方的 .embed-action 类，尺寸/圆角/hover 高亮/移动端触控尺寸
+ * 全部由官方 CSS 负责，插件侧只补一个删除按钮的危险色。
  *
  * - 排除：把这张图片从当前图片组中移出，重新作为一行独立图片放到图片组下方
  *   （上下各留一行空行），缓存缩略图与原图文件保持不变。
@@ -70,12 +75,9 @@ export function attachImageWrapperActions(
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
 ): void {
-    const overlay = createDiv({ cls: "plugin-image-item-overlay" });
-    wrapper.appendChild(overlay);
-
     const actions = createDiv({ cls: "plugin-image-item-actions" });
 
-    const excludeBtn = createDiv({ cls: "plugin-image-item-action-btn clickable-icon" });
+    const excludeBtn = createDiv({ cls: "embed-action plugin-image-item-action-btn" });
     excludeBtn.setAttribute("aria-label", "Remove from group");
     setIcon(excludeBtn, "circle-minus");
     excludeBtn.addEventListener("mousedown", e => e.stopPropagation());
@@ -85,7 +87,7 @@ export function attachImageWrapperActions(
         excludeImageBelowGroup(wrapper, container, plugin, ctx, el);
     });
 
-    const deleteBtn = createDiv({ cls: "plugin-image-item-action-btn plugin-image-item-action-btn--danger clickable-icon" });
+    const deleteBtn = createDiv({ cls: "embed-action plugin-image-item-action-btn plugin-image-item-action-btn--danger" });
     deleteBtn.setAttribute("aria-label", "Delete image");
     setIcon(deleteBtn, "trash-2");
     deleteBtn.addEventListener("mousedown", e => e.stopPropagation());
@@ -122,7 +124,7 @@ export function attachImageWrapperActions(
 }
 
 /**
- * 移除图片组内所有单图操作入口（悬停蒙层 + 排除 / 删除按钮）。
+ * 移除图片组内所有单图操作入口（排除 / 删除按钮栏）。
  *
  * 阅读模式（非 Live Preview）下笔记本身不可编辑，图片组也不应该提供任何编辑操作，
  * 因此渲染完成后直接把这些元素摘掉；渲染时无法提前判断模式（此时 el 还没挂进文档），
@@ -130,6 +132,6 @@ export function attachImageWrapperActions(
  */
 export function removeImageWrapperActions(container: HTMLDivElement): void {
     container
-        .querySelectorAll(".plugin-image-item-overlay, .plugin-image-item-actions")
+        .querySelectorAll(".plugin-image-item-actions")
         .forEach((node) => node.remove());
 }

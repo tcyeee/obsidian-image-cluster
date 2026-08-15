@@ -154,6 +154,10 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     const settingBtn = settingWrapper.querySelector<HTMLElement>('.plugin-image-setting-btn-container');
                     settingBtn?.removeClass('clickable-icon');
                     settingBtn?.addClass('embed-action');
+                    // 官方只给「图片 embed」的按钮栏加了毛玻璃背景板（app.css: `.image-embed .embed-actions`），
+                    // 代码块的按钮栏拿不到，于是同一篇笔记里悬停单张图片和悬停图片组会看到两种风格。
+                    // 打一个标记类，由 styles.css 把那份背景板补齐（只作用于本插件的代码块）。
+                    actionsEl.addClass('plugin-image-embed-actions');
                 }
                 if (actionsEl && editBtn) {
                     actionsEl.insertBefore(settingWrapper, editBtn);
