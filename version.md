@@ -1,5 +1,24 @@
 # obsidian-image-cluster 更新日志
 
+## 1.4.0 · 2026-08-15
+
+- Adapted to Obsidian 1.13: both injected buttons now live in the native `.embed-actions` bar next to the edit button, inheriting its positioning, fade-in and mobile touch sizing — minAppVersion is therefore raised to 1.13.4
+- Migrated the settings tab to the declarative `getSettingDefinitions()` API so each setting is reachable from Obsidian's settings search
+- Sharpened thumbnails on high-DPI screens by generating them at the display size multiplied by devicePixelRatio (capped at 2x), keying the cache on that resolution and trashing the pre-DPR cache entry
+- Added a command to clean up orphaned thumbnail cache files left behind while the plugin was not running
+- Reading mode no longer shows any editing affordance: the per-image hover overlay with its exclude/delete buttons is hidden along with the settings button
+- Fixed the settings button appearing to do nothing when clicked in Live Preview, caused by the panel being positioned off-screen from a zero-sized `display: contents` wrapper
+- Fixed handling of lines containing several images, image paths that are not valid percent-encoding, and thumbnail cache entries orphaned by native renames
+- 适配 Obsidian 1.13：两个注入按钮改为放进原生 `.embed-actions` 按钮栏、与编辑按钮并排，定位、淡入、移动端触控尺寸全部继承官方样式——minAppVersion 相应提升到 1.13.4
+- 设置页迁移到声明式的 `getSettingDefinitions()` API，每个设置项都能被 Obsidian 的设置搜索找到
+- 优化高分屏下的缩略图清晰度：按展示尺寸 × devicePixelRatio（封顶 2x）生成，缓存 key 带上该分辨率，并顺手清理升级前遗留的旧缓存
+- 新增清理孤儿缩略图缓存的命令，覆盖插件未运行期间产生的残留文件
+- 阅读模式下不再显示任何编辑入口：单图悬停蒙层及其「排除 / 删除」按钮与设置按钮一并隐藏
+- 修复 Live Preview 下点击设置按钮没有反应的问题：面板位置取自带 `display: contents` 的包装元素，其尺寸恒为 0，导致面板被定位到视口外
+- 修复同一行写有多张图片、图片路径不是合法百分号编码、以及原生重命名导致缩略图缓存变成孤儿这几种情况的处理
+
+---
+
 ## 1.3.7 · 2026-07-10
 
 - Added exclude/delete actions shown on hover for images inside a group, with a confirmation dialog when deleting an image still referenced elsewhere in the vault
