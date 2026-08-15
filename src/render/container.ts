@@ -53,10 +53,9 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
     const openPanel = () => {
         cancelScheduledClose();
         // 根据按钮当前的视口坐标动态定位面板。
-        // 必须取 settingBtn 而不是外层的 settingWrapper：编辑模式下 wrapper 被移进
-        // .embed-actions 后带 `display: contents`（见 styles.css），自身不生成盒子，
-        // getBoundingClientRect() 恒为全 0，会把面板定位到视口左侧外，
-        // 表现为「点击设置按钮没有任何反应」。
+        // 取 settingBtn 而不是外层的 settingWrapper：阅读模式下 wrapper 是绝对定位的
+        // 容器、编辑模式下是 .embed-actions 里的 flex 子项（见 styles.css），两种形态的
+        // 盒子边界都不等于按钮本身；只有按钮的矩形才能让面板稳定贴在按钮下沿。
         const rect = settingBtn.getBoundingClientRect();
         setCssProps(panel, {
             "--plugin-panel-top": `${rect.bottom + 4}px`,

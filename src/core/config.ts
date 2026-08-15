@@ -48,6 +48,17 @@ export const config = {
 };
 
 /**
+ * Obsidian 会当作图片嵌入渲染的扩展名（小写）。
+ *
+ * 本插件只对图片生成缩略图，因此需要"vault 里有哪些图片"这一信息的地方
+ * （目前只有 pruneOrphanedThumbnailCache）都用它把范围收到最小：
+ * 只看图片文件，绝不读取笔记、附件等其他文件的路径。
+ */
+export const IMAGE_EXTENSIONS = new Set([
+    "avif", "bmp", "gif", "jpeg", "jpg", "png", "svg", "webp",
+]);
+
+/**
  * 新建图片组在代码块没有显式配置行时使用的默认外观。
  *
  * 与上面 config 中的调优常量不同：这几个字段代表「当前生效的用户默认值」，

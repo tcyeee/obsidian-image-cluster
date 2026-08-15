@@ -1,6 +1,6 @@
 import ImgRowPlugin from "main";
 import { Notice, TFile, TFolder, normalizePath } from "obsidian";
-import { config } from "../core/config";
+import { IMAGE_EXTENSIONS, config } from "../core/config";
 import { detectContentRect } from "./content-rect";
 import { md5 } from "./md5";
 
@@ -232,11 +232,17 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
  * rename/delete 事件触发"的原图变更。如果原图是在插件被禁用期间、或通过 vault 外部工具
  * 被移动/删除的，对应缓存不会经过那两个监听器，只会在 assets/cache/ 里永久沉积。
  *
- * 这里做一次全量扫描：对 vault 中每个非缓存文件，按当前目标分辨率重新计算一遍
+ * 这里做一次扫描：对 vault 中每个图片文件，按当前目标分辨率重新计算一遍
  * "如果现在渲染它，期望的缓存路径是什么"，得到一份当前仍然有效的缓存路径集合；
  * 不在这份集合里的缓存文件都视为孤儿——既包括原图已经不存在的，也包括原图还在、
  * 但缓存是在其他分辨率（例如非 Retina 屏）下生成的旧文件，两者删除都是安全的：
  * 下次渲染到对应图片时会按当前分辨率重新生成一份。
+ *
+ * 关于遍历范围：缓存文件名是 md5(原图路径@分辨率)，单向不可逆，没法从缓存文件反推
+ * 原图路径去逐个校验存在性，因此只能反过来枚举原图、算出全部合法缓存名。枚举时用
+ * IMAGE_EXTENSIONS 过滤，只取图片文件的路径——笔记和其他附件永远不会有缩略图，
+ * 也就不需要读它们的路径。万一漏掉某种插件支持、这里未列出的图片格式，后果只是它的
+ * 缓存被当成孤儿删掉、下次渲染时重新生成，不会丢数据。
  *
  * @returns 实际删除的孤儿缓存文件数
  */
@@ -246,6 +252,7 @@ export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise
 
   const validThumbPaths = new Set<string>();
   for (const file of plugin.app.vault.getFiles()) {
+    if (!IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) continue;
     if (file.path.startsWith(config.THUMBNAIL_PATH)) continue;
     validThumbPaths.add(getThumbPath(file.path));
   }

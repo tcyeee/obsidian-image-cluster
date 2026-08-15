@@ -1,66 +1,53 @@
 ![](../assets/banner.png)
 
+<div align="center">
+	<img src="https://img.shields.io/badge/📩-tcyeee@outlook.com-red">
+	<!-- last commit -->
+	<img src="https://img.shields.io/github/last-commit/tcyeee/obsidian-image-cluster">
+	<!-- release -->
+	<img src="https://img.shields.io/github/v/release/tcyeee/obsidian-image-cluster">
+	<!-- license -->
+	<img src="https://img.shields.io/github/license/tcyeee/obsidian-image-cluster">
+	<!-- stars -->
+	<img src="https://img.shields.io/github/stars/tcyeee/obsidian-image-cluster">
+</div>
+
+<br>
+
+
+
 <div align="center">中文 ｜ <a href="../README.md">English</a></div>
 
-<br>
-<br>
-<br>
+# Image Cluster
 
-Image Cluster 可以让你在笔记中轻松将多张图片组合到一起，让你的笔记界面更美观、更有条理。
+Image Cluster 可以将笔记中的多张图片整齐地组合在一起，让内容更美观、更有条理。动图展示了插件的全部操作。
+![Image Cluster 操作演示](../assets/0.gif)
 
-![](../assets/1.png)
+## 安装
 
-## ⬇️ 安装
+### 在 Obsidian 中安装
 
-### 通过社区插件（推荐）
-
-你可以直接在 Obsidian 的社区插件商店中安装本插件：
-
-1. 打开 Obsidian，进入 设置 → 社区插件
-2. 点击“浏览”，搜索 “Image Cluster”
-3. 点击“安装”，然后启用该插件
-   
-你也可以在社区插件页面中直接安装：[点击安装](https://obsidian.md/plugins?id=image-cluster)。
+1. 打开 Obsidian 的**设置 → 第三方插件**。
+2. 点击**浏览**，搜索 **Image Cluster**。
+3. 点击**安装**，然后启用插件。
 
 ### 手动安装
 
-1. 前往 [GitHub Releases](https://github.com/tcyeee/obsidian-image-cluster/releases) 下载最新版本
-2. 将 main.js、manifest.json 和 styles.css 解压到你的仓库 `.obsidian/plugins/image-cluster/` 目录
-3. 重新加载 Obsidian，并在 设置 → 社区插件 中启用插件
+1. 打开 [Image Cluster 下载页面](https://community.obsidian.md/plugins/image-cluster)。
+2. 下载插件，并按照页面上的说明完成安装。
+3. 打开 Obsidian 的**设置 → 第三方插件**，启用 **Image Cluster**。
 
-## ✅ 使用方法
+## 进阶操作说明
 
-1. 对图片链接右键唤出菜单，点击“Wrap the images into a group”。
+下面这些设置会自动保存在 `imgs` 图片组的第一行。如果需要更精细地调整样式，也可以手动修改对应的值。
 
-![](../assets/2.gif)
-
-2. 在**阅读模式下**，点击图片组右上角“设置”按钮，进行样式自定义。
-
-![](../assets/3.gif)
-
-
-
-## ⚙️ 配置
-
-图片组的样式信息保存在 `imgs` 代码块第一行，以 `;;` 结尾，你可以手动修改其中参数，进行更深度的自定义。
-
-````text
-```imgs
-size=150&gap=8&radius=10&shadow=false&border=false;;
-![](assets/1.png)
-![](assets/2.png)
-![](assets/3.png)
-![](assets/4.png)
-```
-````
-
-### 可选参数
-
-| Option | Description                    | Default | Available options |
-| ------ | ------------------------------ | ------- | ----------------- |
-| size   | Image width and height in `px` | 150     | 50~500            |
-| radius | Border radius in `px`          | 10      | 0~50              |
-| gap    | Space between images in `px`   | 8       | 0~50              |
-| shadow | Show drop shadow or not        | false   | false / true      |
-| border | Show border around images      | false   | false / true      |
-| hidden | hidden images                  | false   | false / true      |
+| 变量 | 作用 | 初始值 | 可用值 |
+| --- | --- | --- | --- |
+| `size` | 图片的宽度和高度 | `150` | `50`–`500` 像素 |
+| `gap` | 图片之间的间距 | `8` | `0`–`50` 像素 |
+| `radius` | 图片圆角大小 | `10` | `0`–`50` 像素 |
+| `shadow` | 是否显示图片阴影 | `false` | `true` 或 `false` |
+| `border` | 是否显示图片边框 | `false` | `true` 或 `false` |
+| `hidden` | 是否模糊图片并禁止点击查看 | `false` | `true` 或 `false` |
+| `limit` | 是否最多显示三行图片，点击后可展开 | `false` | `true` 或 `false` |
+| `padding-left` | 图片组向右移动的距离 | `0` | 不小于 `0` 的像素值 |

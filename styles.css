@@ -416,11 +416,15 @@
 }
 
 /* 编辑模式（Live Preview）：wrapper 被移进代码块自带的 .embed-actions
-   （见 src/render/processor.ts）。wrapper 自身不参与布局，让 setting 按钮
-   直接成为 .embed-actions 的 flex 子项，与原生按钮并排；
-   定位、淡入、hover 高亮全部继承官方样式，这里不需要再写。 */
+   （见 src/render/processor.ts）。官方的 .embed-actions 是 `display:flex` +
+   `gap`，wrapper 让自己成为一个恰好包住 setting 按钮的 flex 子项，与原生按钮
+   并排、间距由官方 gap 统一负责；定位、淡入、hover 高亮全部继承官方样式，
+   这里不需要再写。
+   注意不要用 `display: contents`（Obsidian 当前 Electron 只是部分支持，提交
+   审核会报 "browser feature css-display-contents"）——按钮本身也是 flex 盒子，
+   外面套一层 shrink-to-fit 的 flex 容器与"wrapper 不生成盒子"的排版结果一致。 */
 .embed-actions > .plugin-image-setting-outer {
-    display: contents;
+    display: flex;
 }
 
 /* 兜底：万一某个宿主上下文里代码块没有 .embed-actions，wrapper 会被直接挂到

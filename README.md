@@ -16,68 +16,36 @@
 
 <div align="center"><a href="i18n/README.zh.md">中文</a> ｜ English</div>
 
-<br>
-<br>
-<br>
+# Image Cluster
 
+Image Cluster helps you arrange multiple images into a clean, organized group in your Obsidian notes. The animation shows all available interactions.
 
-Obsidian Image Cluster helps you easily combine multiple images together in your notes, making your note interface more beautiful and organized.
+![](assets/0.gif)
+## Installation
 
-![](assets/1.png)
+### Install from Obsidian
 
-## ⬇️ Installation
+1. Open **Settings → Community plugins** in Obsidian.
+2. Select **Browse** and search for **Image Cluster**.
+3. Select **Install**, then enable the plugin.
 
-### From Community Plugins (Recommended)
+### Install manually
 
-You can install the plugin directly from Obsidian's Community Plugins browser:
+1. Open the [Image Cluster download page](https://community.obsidian.md/plugins/image-cluster).
+2. Download the plugin and follow the installation instructions on the page.
+3. Open **Settings → Community plugins** in Obsidian and enable **Image Cluster**.
 
-1. Open Obsidian and go to Settings > Community plugins
-2. Click on Browse and search for "Image Cluster"
-3. Click Install and then Enable the plugin
-   
-You can also install the plugin directly from its Community Plugins entry: [Image Cluster on Obsidian](https://obsidian.md/plugins?id=image-cluster).
+## Advanced options
 
-### Manual Installation
+These options are saved automatically in the first line of an `imgs` block. You can also edit their values manually when you need more precise control.
 
-1. Download the latest release from [GitHub Releases](https://github.com/tcyeee/obsidian-image-cluster/releases)
-2. Extract main.js, manifest.json, and styles.css to your vault's `.obsidian/plugins/image-cluster/` directory
-3. Reload Obsidian and enable the plugin in Settings → Community plugins
-
-
-## ✅ How to Use
-
-1. Right‑click on an image link and choose “Wrap the images into a group”.
-
-![](assets/2.gif)
-
-2. In **Reading mode**, click the “Settings” button at the top‑right corner of an image group to customize its style.
-
-![](assets/3.gif)
-
-
-## ⚙️ Configuration
-
-The style configuration of an image group is stored in the first line of the `imgs` code block and ends with `;;`.  
-You can manually tweak the parameters there for deeper customization.
-
-````text
-```imgs
-size=150&gap=8&radius=10&shadow=false&border=false;;
-![](assets/1.png)
-![](assets/2.png)
-![](assets/3.png)
-![](assets/4.png)
-```
-````
-
-### Optional parameters
-
-| Option | Description                    | Default | Available options |
-| ------ | ------------------------------ | ------- | ----------------- |
-| size   | Image width and height in `px` | 150     | 50~500            |
-| radius | Border radius in `px`          | 10      | 0~50              |
-| gap    | Space between images in `px`   | 8       | 0~50              |
-| shadow | Show drop shadow or not        | false   | false / true      |
-| border | Show border around images      | false   | false / true      |
-| hidden | hidden images                  | false   | false / true      |
-
+| Option | What it changes | Initial value | Available values |
+| --- | --- | --- | --- |
+| `size` | Image width and height | `150` | `50`–`500` px |
+| `gap` | Space between images | `8` | `0`–`50` px |
+| `radius` | Image corner roundness | `10` | `0`–`50` px |
+| `shadow` | Shows an image shadow | `false` | `true` or `false` |
+| `border` | Shows an image border | `false` | `true` or `false` |
+| `hidden` | Blurs the images and prevents them from being opened | `false` | `true` or `false` |
+| `limit` | Shows no more than three rows until expanded | `false` | `true` or `false` |
+| `padding-left` | Moves the image group to the right | `0` | Any number from `0` px |
