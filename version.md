@@ -1,5 +1,12 @@
 # obsidian-image-cluster 更新日志
 
+## 1.4.3 · 2026-08-28
+
+- Clicking an image in reading mode no longer stacks Obsidian 1.13's native Lightbox (a low-res thumbnail) underneath the plugin's own preview overlay — the click handler now calls `preventDefault`, matching what the mobile touch path already did
+- 阅读模式下点击图片，不再在插件自己的预览层下方叠一层 Obsidian 1.13 的原生 Lightbox（低清缩略图）——点击处理现在会调用 `preventDefault`，与移动端 touch 路径的既有处理保持一致
+
+---
+
 ## 1.4.2 · 2026-08-15
 
 - The hover action bars now match Obsidian's native ones: both the image group's own bar and the per-image "remove / delete" bar get the same frosted backdrop panel, button size, corner radius, hover highlight and mobile touch sizing as the buttons on a plain image embed

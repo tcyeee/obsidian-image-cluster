@@ -1,6 +1,6 @@
 {
 	"name": "image-cluster",
-	"version": "1.4.2",
+	"version": "1.4.3",
 	"description": "Combine multiple images together in your notes for a more beautiful and organized layout.",
 	"main": "main.js",
 	"scripts": {
