@@ -29,7 +29,15 @@ export function createImage(option: SettingOptions, src: string, srcList?: strin
     const openOverlay = () => openImagePreview(src, srcList, idx);
 
     // 桌面端：鼠标点击打开预览
-    img.addEventListener("click", openOverlay);
+    // preventDefault 是必须的：Obsidian 1.13 起，阅读模式给 .markdown-preview-sizer
+    // 挂了一个委托监听（"click" on "img,video"），会把 section 里所有 <img> 收集成图集、
+    // 用 img.src（此时是缩略图缓存路径）打开原生 Lightbox。该监听首行即 `if (defaultPrevented) return`，
+    // 因此这里必须调用 preventDefault，否则原生 Lightbox 会在我们的 overlay 底下再叠一层低清预览，
+    // 关闭我们的 overlay 后就露出那层缩略图。移动端的 touchend 分支已有同等处理。
+    img.addEventListener("click", e => {
+        e.preventDefault();
+        openOverlay();
+    });
     // 移动端：touchend 打开预览
     // 记录 touchstart 坐标，在 touchend 时判断位移是否超过阈值：
     // 超过则认为是滑动手势，不打开预览，避免页面滚动时误触图片。
