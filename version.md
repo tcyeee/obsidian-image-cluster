@@ -1,5 +1,12 @@
 # obsidian-image-cluster 更新日志
 
+## 1.4.4 · 2026-09-01
+
+- Grouping an image line from the editor right-click menu or the Live Preview hover button now keeps any prose on that line — text before, between, or after the images is preserved above and below the generated `` ```imgs `` block instead of being silently dropped
+- 通过编辑器右键菜单或实时预览悬停按钮将图片行成组时，现在会保留该行的文字——图片前、中、后的文本会被放到生成的 `` ```imgs `` 块的上下方，而不再被静默丢弃
+
+---
+
 ## 1.4.3 · 2026-08-28
 
 - Clicking an image in reading mode no longer stacks Obsidian 1.13's native Lightbox (a low-res thumbnail) underneath the plugin's own preview overlay — the click handler now calls `preventDefault`, matching what the mobile touch path already did
