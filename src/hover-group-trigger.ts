@@ -1,8 +1,7 @@
 import ImgRowPlugin from "main";
 import { setIcon, setTooltip } from "obsidian";
 import { EditorView } from "@codemirror/view";
-import { getImageSyntaxes, hasMarkdownImage, imgsWrapper, isListLine } from "./markdown/image-syntax";
-import { config } from "./core/config";
+import { buildGroupBlockForLine } from "./markdown/image-syntax";
 
 /**
  * 在 Live Preview 下，「未成组」的图片 embed（div.image-embed）悬停 / 选中时，
@@ -58,11 +57,9 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
 
         const pos = view.posAtDOM(img);
         const line = view.state.doc.lineAt(pos);
-        if (!hasMarkdownImage(line.text)) return;
-
         const prevLineText = line.number > 1 ? view.state.doc.line(line.number - 1).text : "";
-        const paddingLeft = isListLine(prevLineText) ? config.LIST_INDENT_PX : 0;
-        const wrapped = imgsWrapper(getImageSyntaxes(line.text), paddingLeft);
+        const wrapped = buildGroupBlockForLine(line.text, prevLineText);
+        if (!wrapped) return;
 
         view.dispatch({ changes: { from: line.from, to: line.to, insert: wrapped } });
     };
@@ -77,7 +74,7 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
         // embed-action：官方按钮样式（尺寸、圆角、hover 高亮、移动端放大）
         const btn = createDiv({ cls: "embed-action plugin-image-group-action" });
         setIcon(btn, "lucide-layout-grid");
-        setTooltip(btn, "Group image");
+        setTooltip(btn, "Group images");
 
         // 阻止 mousedown 冒泡到 CM6 编辑器，避免其自身的点击-定位光标逻辑
         // 抢在我们的 click 监听器之前处理这次交互（曾导致按钮点击无响应）
