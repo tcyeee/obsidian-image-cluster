@@ -1,3 +1,5 @@
+import { config } from "../core/config";
+
 /**
  * 将单行图片语法包装成 ```imgs 代码块。
  *
@@ -15,6 +17,56 @@ export function imgsWrapper(imageSyntax: string, paddingLeft = 0): string {
   const trimmed = imageSyntax.trim();
   const configLine = paddingLeft > 0 ? `padding-left=${paddingLeft};;\n` : "";
   return "```imgs\n" + configLine + trimmed + "\n```\n";
+}
+
+/**
+ * 把包含图片语法的一整行转换成 ```imgs 代码块，同时保留行内的非图片文字。
+ *
+ * imgs 代码块是块级元素，无法和文字同处一行，因此：
+ * - 第一张图片之前的文字，放到代码块的上一行；
+ * - 图片之间、以及最后一张图片之后的文字，合并放到代码块的下一行。
+ *
+ * 修复：以前直接用 getImageSyntaxes(line) + imgsWrapper 替换整行，
+ * 行内的说明文字（如 "看这张图 ![[a.png]] 很清楚"）会被静默丢弃。
+ *
+ * @param paddingLeft - 传给 imgsWrapper 的左侧内移像素
+ */
+export function wrapImageLineAsGroup(line: string, paddingLeft = 0): string {
+  const matches = getImageMatches(line);
+  if (matches.length === 0) return imgsWrapper(line, paddingLeft);
+
+  const leading = line.slice(0, matches[0].start).replace(/\s+/g, " ").trim();
+
+  let rest = "";
+  for (let i = 0; i < matches.length; i++) {
+    const gapStart = matches[i].end;
+    const gapEnd = i + 1 < matches.length ? matches[i + 1].start : line.length;
+    rest += line.slice(gapStart, gapEnd);
+  }
+  const trailing = rest.replace(/\s+/g, " ").trim();
+
+  const images = matches.map((m) => m.text).join("\n");
+  const block = imgsWrapper(images, paddingLeft);
+
+  return (leading ? leading + "\n" : "") + block + (trailing ? trailing + "\n" : "");
+}
+
+/**
+ * 「把某一行转换成图片组」这个功能的公共逻辑：编辑器右键菜单项（editor-menu.ts）
+ * 和 Live Preview 悬停按钮（hover-group-trigger.ts）两个入口都调用它，保证行为一致
+ * ——包括「跟随上一行的列表缩进」这条规则和「保留行内非图片文字」的包装方式。
+ *
+ * 定位目标行、以及用何种方式把替换文本写回编辑器（CM6 dispatch / Obsidian Editor.replaceRange）
+ * 是两个入口各自的编辑器 API 差异，留在调用方。
+ *
+ * @param lineText     目标行的完整文本
+ * @param prevLineText 上一行文本（用于判断是否跟随列表缩进；没有上一行传 ""）
+ * @returns 用来替换该行的 ```imgs 代码块文本；该行不含图片语法时返回 null
+ */
+export function buildGroupBlockForLine(lineText: string, prevLineText: string): string | null {
+  if (!hasMarkdownImage(lineText)) return null;
+  const paddingLeft = isListLine(prevLineText) ? config.LIST_INDENT_PX : 0;
+  return wrapImageLineAsGroup(lineText, paddingLeft);
 }
 
 /**

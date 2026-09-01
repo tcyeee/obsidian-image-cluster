@@ -1,11 +1,13 @@
 import ImgRowPlugin from "main";
-import { getImageSyntaxes, hasMarkdownImage, imgsWrapper, isListLine } from "./markdown/image-syntax";
-import { config } from "./core/config";
+import { buildGroupBlockForLine, hasMarkdownImage } from "./markdown/image-syntax";
 
 /**
- * 在编辑器（源模式 / 实时预览）的右键菜单中追加一项： 
+ * 在编辑器（源模式 / 实时预览）的右键菜单中追加一项：
  * 当光标所在行包含 Markdown 图片语法时（![](...) 或 ![[]]），
- * 认为用户右键了图片附近，然后将其包装成 ```imgs 代码块
+ * 认为用户右键了图片附近，然后将其包装成 ```imgs 代码块。
+ *
+ * 与 Live Preview 悬停按钮（hover-group-trigger.ts）是同一个功能的两个入口，
+ * 共用 buildGroupBlockForLine 生成替换文本，行为保持一致。
  */
 export function registerEditorMenu(that: ImgRowPlugin) {
     that.registerEvent(
@@ -13,23 +15,21 @@ export function registerEditorMenu(that: ImgRowPlugin) {
             const cursor = editor.getCursor();
             const line = editor.getLine(cursor.line) ?? "";
 
-            // 如果当前行不包含图片语法，则直接返回
+            // 如果当前行不包含图片语法，则不加这一项
             if (!hasMarkdownImage(line)) return;
 
-            // 拿到其中代表图片的 Markdown 语法
-            const imageSyntax = getImageSyntaxes(line);
             menu.addItem((item) => {
                 item
-                    .setIcon("image")
+                    .setIcon("lucide-layout-grid")
                     .setTitle("Group images")
                     .onClick(() => {
                         const lineNo = cursor.line;
                         const prevLine = lineNo > 0 ? (editor.getLine(lineNo - 1) ?? "") : "";
-                        const paddingLeft = isListLine(prevLine) ? config.LIST_INDENT_PX : 0;
-                        const wrappedImageSyntax = imgsWrapper(imageSyntax, paddingLeft);
-                        // 使用生成的 ```imgs 代码块替换当前行的图片语法
+                        const block = buildGroupBlockForLine(line, prevLine);
+                        if (!block) return;
+                        // 用生成的 ```imgs 代码块替换当前行（行内非图片文字保留在代码块上/下方）
                         editor.replaceRange(
-                            wrappedImageSyntax,
+                            block,
                             { line: lineNo, ch: 0 },
                             { line: lineNo, ch: line.length },
                         );

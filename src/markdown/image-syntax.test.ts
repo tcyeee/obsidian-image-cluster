@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { config } from "../core/config";
 import {
+    buildGroupBlockForLine,
     getImageMatches,
     getImagePathMatches,
     getImageSyntaxes,
@@ -7,6 +9,7 @@ import {
     imgsWrapper,
     isListLine,
     removeImageFromLine,
+    wrapImageLineAsGroup,
 } from "./image-syntax";
 
 describe("imgsWrapper", () => {
@@ -20,6 +23,62 @@ describe("imgsWrapper", () => {
 
     it("trims surrounding whitespace from the image syntax", () => {
         expect(imgsWrapper("   ![[a.png]]   ")).toBe("```imgs\n![[a.png]]\n```\n");
+    });
+});
+
+describe("wrapImageLineAsGroup", () => {
+    it("wraps a bare image line just like imgsWrapper", () => {
+        expect(wrapImageLineAsGroup("![[a.png]]")).toBe("```imgs\n![[a.png]]\n```\n");
+    });
+
+    it("keeps text before the first image on the line above the block", () => {
+        expect(wrapImageLineAsGroup("看这张图 ![[a.png]]")).toBe(
+            "看这张图\n```imgs\n![[a.png]]\n```\n",
+        );
+    });
+
+    it("keeps text after the last image on the line below the block", () => {
+        expect(wrapImageLineAsGroup("![[a.png]] 很清楚")).toBe(
+            "```imgs\n![[a.png]]\n```\n很清楚\n",
+        );
+    });
+
+    it("preserves leading, in-between and trailing prose around multiple images", () => {
+        expect(wrapImageLineAsGroup("prefix ![[a.png]] mid ![b](b.png) suffix")).toBe(
+            "prefix\n```imgs\n![[a.png]]\n![b](b.png)\n```\nmid suffix\n",
+        );
+    });
+
+    it("forwards paddingLeft to the fenced block", () => {
+        expect(wrapImageLineAsGroup("cap ![[a.png]]", 28)).toBe(
+            "cap\n```imgs\npadding-left=28;;\n![[a.png]]\n```\n",
+        );
+    });
+
+    it("falls back to wrapping the whole line when there is no image", () => {
+        expect(wrapImageLineAsGroup("just some text")).toBe("```imgs\njust some text\n```\n");
+    });
+});
+
+describe("buildGroupBlockForLine", () => {
+    it("returns null when the line has no image syntax", () => {
+        expect(buildGroupBlockForLine("just a paragraph", "")).toBeNull();
+    });
+
+    it("wraps the line and keeps surrounding prose", () => {
+        expect(buildGroupBlockForLine("看这张图 ![[a.png]] 很清楚", "")).toBe(
+            "看这张图\n```imgs\n![[a.png]]\n```\n很清楚\n",
+        );
+    });
+
+    it("follows the previous line's list indent", () => {
+        expect(buildGroupBlockForLine("![[a.png]]", "- 列表项")).toBe(
+            `\`\`\`imgs\npadding-left=${config.LIST_INDENT_PX};;\n![[a.png]]\n\`\`\`\n`,
+        );
+    });
+
+    it("does not indent when the previous line is not a list", () => {
+        expect(buildGroupBlockForLine("![[a.png]]", "普通段落")).toBe("```imgs\n![[a.png]]\n```\n");
     });
 });
 
