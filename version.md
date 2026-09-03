@@ -1,5 +1,14 @@
 # obsidian-image-cluster 更新日志
 
+## 1.4.5 · 2026-09-03
+
+- A broken (404) image placeholder inside a group now shows a delete button on hover that strips just that broken link line from the `` ```imgs `` block — there is no source file to exclude or delete, so removing the dead link is the only meaningful action
+- The 404 placeholder also loses its red border, so it reads as a quiet thumbnail instead of an error box
+- 图片组中加载失败（404）的占位块，现在悬停时会出现删除按钮，只把这一条坏链接行从 `` ```imgs `` 块中摘掉——这类占位块背后没有原图文件可「排除」或「删除」，移除坏链接是唯一有意义的操作
+- 404 占位块同时去掉了红色边框，看起来是一个安静的缩略图，而不是一个报错框
+
+---
+
 ## 1.4.4 · 2026-09-01
 
 - Grouping an image line from the editor right-click menu or the Live Preview hover button now keeps any prose on that line — text before, between, or after the images is preserved above and below the generated `` ```imgs `` block instead of being silently dropped
