@@ -124,6 +124,37 @@ export function attachImageWrapperActions(
 }
 
 /**
+ * 给图片组中「加载失败（404）」的占位块挂上 hover 时出现的「删除」按钮。
+ *
+ * 这类 wrapper 背后没有对应的 TFile（原图不存在 / 路径写错），所以既不能「排除」
+ * 到组下方（排除出去还是一条坏链接），也没有原图文件可删，唯一有意义的操作就是
+ * 把这条指向不存在图片的 Markdown 行从代码块里摘掉。按钮栏复用 .plugin-image-item-actions
+ * 的定位与淡入，按钮本身复用官方 .embed-action，与正常缩略图上的操作栏保持一致。
+ */
+export function attachImageErrorActions(
+    wrapper: HTMLElement,
+    container: HTMLDivElement,
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+): void {
+    const actions = createDiv({ cls: "plugin-image-item-actions" });
+
+    const deleteBtn = createDiv({ cls: "embed-action plugin-image-item-action-btn plugin-image-item-action-btn--danger" });
+    deleteBtn.setAttribute("aria-label", "Remove broken link");
+    setIcon(deleteBtn, "trash-2");
+    deleteBtn.addEventListener("mousedown", e => e.stopPropagation());
+    deleteBtn.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        removeImageFromGroup(wrapper, container, plugin, ctx, el);
+    });
+
+    actions.appendChild(deleteBtn);
+    wrapper.appendChild(actions);
+}
+
+/**
  * 移除图片组内所有单图操作入口（排除 / 删除按钮栏）。
  *
  * 阅读模式（非 Live Preview）下笔记本身不可编辑，图片组也不应该提供任何编辑操作，

@@ -8,7 +8,7 @@ import { createImage } from "./image";
 import { createContainer } from "./container";
 import { applySettingsToContainer } from "./layout";
 import { enableDragSort } from "./drag-sort";
-import { attachImageWrapperActions, removeImageWrapperActions } from "./image-actions";
+import { attachImageErrorActions, attachImageWrapperActions, removeImageWrapperActions } from "./image-actions";
 import { getImagePathMatches } from "../markdown/image-syntax";
 
 // el -> 这个 el 上最近一次调用本处理器时创建的 container。
@@ -107,6 +107,8 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     // 触发的持久化中被静默从文件里删除——即便用户根本没碰过这张坏图片。
                     wrapper.appendChild(createErrorDiv(option));
                     container.appendChild(wrapper);
+                    // 悬停时出现「删除」按钮，让用户摘掉这条指向不存在图片的坏链接
+                    attachImageErrorActions(wrapper, container, plugin, ctx, el);
                 }
             });
         }
