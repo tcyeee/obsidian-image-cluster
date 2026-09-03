@@ -152,6 +152,5 @@ export function createErrorDiv(option: SettingOptions): HTMLDivElement {
         "--plugin-image-radius": `${option.radius}px`,
     });
     if (option.shadow) errorDiv.classList.add("plugin-image-shadow")
-    if (option.border) errorDiv.classList.add("plugin-image-border");
     return errorDiv;
 }
