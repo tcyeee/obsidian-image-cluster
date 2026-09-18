@@ -2,6 +2,19 @@ import { Translations } from "./en";
 
 export const zh: Translations = {
     settings: {
+        groupGeneral: "通用",
+        groupDefaultStyle: "默认样式",
+        groupAdvanced: {
+            name: "高级",
+            desc: "不常用的设置，例如缓存文件夹路径。",
+        },
+        language: {
+            name: "显示语言",
+            desc: "插件界面文本使用的语言。“跟随 Obsidian”会匹配 Obsidian 自身的显示语言。命令面板中的命令名称需要重新加载插件或重启 Obsidian 后才会更新。",
+            auto: "跟随 Obsidian",
+            en: "English",
+            zh: "简体中文",
+        },
         defaultSize: {
             name: "默认图片尺寸",
             desc: "应用于未单独设置尺寸的新建图片组的默认尺寸。",

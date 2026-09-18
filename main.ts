@@ -7,6 +7,7 @@ import { registerEditorDropTarget } from "./src/editor-drop-target";
 import { ImgRowPluginSettings, DEFAULT_SETTINGS, ImgRowSettingTab, applySettingsToConfig } from "./src/settings";
 import { registerThumbnailCacheLifecycle, registerPruneOrphanedThumbnailsCommand } from "./src/thumbnail/thumbnail";
 import { registerDragStateLifecycle } from "./src/drag-state";
+import { setLocale } from "./src/i18n";
 
 export default class ImgRowPlugin extends Plugin {
 	settings: ImgRowPluginSettings;
@@ -36,6 +37,8 @@ export default class ImgRowPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<ImgRowPluginSettings>);
+		// 将已保存的语言偏好在其余模块注册前生效，命令面板等一次性注册的文案才能用上正确语言
+		setLocale(this.settings.language);
 		// 将已保存的设置同步写入 config，使默认值即刻生效
 		applySettingsToConfig(this.settings);
 	}

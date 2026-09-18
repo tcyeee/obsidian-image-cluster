@@ -1,5 +1,18 @@
 export const en = {
     settings: {
+        groupGeneral: "General",
+        groupDefaultStyle: "Default style",
+        groupAdvanced: {
+            name: "Advanced",
+            desc: "Less commonly used settings, such as the cache folder path.",
+        },
+        language: {
+            name: "Display language",
+            desc: "Language used for this plugin's UI text. \"Follow Obsidian\" matches Obsidian's own display language. Command names in the command palette only update after reloading the plugin or restarting Obsidian.",
+            auto: "Follow Obsidian",
+            en: "English",
+            zh: "简体中文",
+        },
         defaultSize: {
             name: "Default image size",
             desc: "Size applied to new image groups that have no explicit size setting.",
