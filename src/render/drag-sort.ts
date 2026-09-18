@@ -1,8 +1,10 @@
 import ImgRowPlugin from "main";
 import { MarkdownPostProcessorContext } from "obsidian";
+import { SettingOptions } from "../core/domain";
 import { persistReorderToSource, persistDragInsertToSource } from "../markdown/persistence";
 import { STANDALONE_IMAGE_DRAG_MIME, getCurrentDrag, GROUP_IMAGE_DRAG_MIME, setGroupDrag } from "../drag-state";
 import { collectWrapperImageLines } from "./elements";
+import { applyMasonryLayout } from "./layout";
 
 /** 在同一行内找离鼠标最近的图片，判断插到它前面还是后面；鼠标不在任何行的高度范围内时返回 null（由调用方决定兜底为追加到末尾）。 */
 function findRowInsertion(
@@ -37,6 +39,7 @@ function findRowInsertion(
  */
 export function enableDragSort(
     container: HTMLDivElement,
+    option: SettingOptions,
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
@@ -49,6 +52,13 @@ export function enableDragSort(
     const clearIndicators = () =>
         getWrappers().forEach(w => w.classList.remove("plugin-image-drag-before", "plugin-image-drag-after"));
 
+    // 瀑布流模式下，wrapper 的显示位置由 JS 算好的 CSS 变量决定（见 layout.ts），
+    // 不会随 DOM 重新插入自动重排——组内重排/拖入新图片后必须手动触发一次重新计算，
+    // 否则要等到持久化写回文件、代码块被重新渲染才会恢复正确的瀑布流排布。
+    const relayoutIfMasonry = () => {
+        if (option.layout === "masonry") applyMasonryLayout(container, option);
+    };
+
     const insertExternalImage = (anchor: HTMLElement | null, before: boolean) => {
         const drag = getCurrentDrag();
         if (!drag) return;
@@ -59,11 +69,13 @@ export function enableDragSort(
         } else {
             container.appendChild(tempWrapper);
         }
+        relayoutIfMasonry();
         void persistDragInsertToSource(collectWrapperImageLines(container), plugin, ctx, el, drag.sourcePath, drag.lineIndex, drag.matchIndex).then(ok => {
             if (ok) return;
             // 落盘失败（例如源图片行号在读取时已失效）：乐观插入的临时 wrapper 必须撤销，
             // 否则图片会同时出现在"已拖入的图片组"和"源位置"两个地方。
             tempWrapper.remove();
+            relayoutIfMasonry();
         });
     };
 
@@ -170,6 +182,7 @@ export function enableDragSort(
                 // 组内重排：拖拽源就是本容器中的某个 wrapper
                 if (dragSrcEl === wrapper) return;
                 container.insertBefore(dragSrcEl, insertBefore ? wrapper : wrapper.nextSibling);
+                relayoutIfMasonry();
                 void persistReorderToSource(collectWrapperImageLines(container), plugin, ctx, el);
                 return;
             }

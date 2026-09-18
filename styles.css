@@ -207,6 +207,27 @@
   transition: background-color 0.15s;
 }
 
+/* ── 瀑布流布局模式 ──
+   网格模式（默认）沿用上面的 flex-wrap 均匀方格；瀑布流模式下每张图片的列位置由
+   src/render/layout.ts 的 applyMasonryLayout 用 JS 显式计算好，通过 CSS 变量传给每个
+   wrapper，这里只负责把它们从 flex 流中摘出来按坐标绝对定位。容器本身的 flex-wrap
+   对绝对定位的子元素没有影响，不需要额外切换 display。 */
+.plugin-image-container[data-layout="masonry"] {
+  height: var(--plugin-masonry-height, auto);
+}
+.plugin-image-container[data-layout="masonry"] > .plugin-image-wrapper {
+  position: absolute;
+  left: var(--plugin-masonry-left, 0px);
+  top: var(--plugin-masonry-top, 0px);
+  width: var(--plugin-image-size, 220px);
+  height: var(--plugin-image-height, var(--plugin-image-size, 220px));
+}
+/* 瀑布流的缩略图本身就是等比缩放、未裁剪的产出，用 contain 保证即便存在四舍五入级别
+   的比例误差，也绝不会出现裁边（宁可留极小的透明缝隙，也不裁内容）。 */
+.plugin-image-container[data-layout="masonry"] .plugin-image {
+  object-fit: contain;
+}
+
 /* 独立图片拖拽悬停在图片组上方时，整体高亮提示这里可以放置 */
 .plugin-image-container--drag-target {
   background-color: var(--background-modifier-hover);
@@ -452,6 +473,80 @@
   border-radius: 999px;
 }
 .plugin-image-setting-size-radio-input:checked + .plugin-image-setting-size-radio-text {
+  color: var(--text-on-accent, #ffffff81);
+  font-weight: 600;
+}
+
+/* ── 布局模式（网格 / 瀑布流）二选一滑块 ──
+   与上面的画布尺寸滑块视觉上一致，但选项数不同（2 个而非 3 个），滑块宽度/位移
+   写死为固定百分比，单独一套类名，避免和三选一的尺寸滑块共用类名时因为选项数不同
+   而相互踩踏。 */
+.plugin-image-setting-layout-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--background-secondary, rgba(240, 242, 247, 0.9));
+  gap: 0;
+}
+.plugin-image-setting-layout-slider {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 2);
+  border-radius: 9px;
+  background: var(--interactive-accent, #5677c0);
+  box-shadow: 0 0 0 1px rgba(40, 90, 180, 0.35);
+  transition: transform 0.18s ease;
+  pointer-events: none;
+}
+.plugin-image-setting-layout-group[data-layout="grid"] .plugin-image-setting-layout-slider {
+  transform: translateX(0%);
+}
+.plugin-image-setting-layout-group[data-layout="masonry"] .plugin-image-setting-layout-slider {
+  transform: translateX(100%);
+}
+.plugin-image-setting-layout-radio {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: normal;
+  color: var(--text-muted);
+  z-index: 1;
+  box-sizing: border-box;
+}
+.plugin-image-setting-layout-radio-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.plugin-image-setting-layout-radio-text {
+  position: relative;
+  font-size: inherit;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+.plugin-image-setting-layout-radio-input:checked + .plugin-image-setting-layout-radio-text {
   color: var(--text-on-accent, #ffffff81);
   font-weight: 600;
 }

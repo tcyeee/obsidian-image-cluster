@@ -1,5 +1,6 @@
 import { MarkdownPostProcessorContext, Notice, Platform, TFile, setIcon } from "obsidian";
 import ImgRowPlugin from "main";
+import { SettingOptions } from "../core/domain";
 import { setCssProps } from "../core/dom";
 import { confirmAndDeleteImage, excludeImageBelowGroup } from "./image-actions";
 
@@ -68,6 +69,7 @@ function buildMenuItems(
     container: HTMLDivElement,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
+    option: SettingOptions,
 ): ContextMenuItemSpec[] {
     const items: ContextMenuItemSpec[] = [];
 
@@ -98,13 +100,13 @@ function buildMenuItems(
             icon: "circle-minus",
             label: "Remove from group",
             separatorBefore: true,
-            onClick: () => excludeImageBelowGroup(wrapper, container, plugin, ctx, el),
+            onClick: () => excludeImageBelowGroup(wrapper, container, plugin, ctx, el, option),
         },
         {
             icon: "trash-2",
             label: "Delete image",
             danger: true,
-            onClick: () => confirmAndDeleteImage(wrapper, file, container, plugin, ctx, el),
+            onClick: () => confirmAndDeleteImage(wrapper, file, container, plugin, ctx, el, option),
         },
     );
 
@@ -127,11 +129,12 @@ export function openImageContextMenu(
     container: HTMLDivElement,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
+    option: SettingOptions,
 ): void {
     closeActiveMenu?.();
 
     const menu = createDiv({ cls: "plugin-image-context-menu" });
-    buildMenuItems(plugin, file, wrapper, container, ctx, el).forEach(({ icon, label, onClick, danger, separatorBefore }) => {
+    buildMenuItems(plugin, file, wrapper, container, ctx, el, option).forEach(({ icon, label, onClick, danger, separatorBefore }) => {
         if (separatorBefore) {
             menu.appendChild(createDiv({ cls: "plugin-image-context-menu-separator" }));
         }

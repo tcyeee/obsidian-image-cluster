@@ -79,7 +79,7 @@ export function createImage(
     // 右键：拦截原生菜单（此前指向缩略图缓存文件），改用自定义菜单
     img.addEventListener("contextmenu", e => {
         e.preventDefault();
-        openImageContextMenu(e.clientX, e.clientY, plugin, file, wrapper, container, ctx, el);
+        openImageContextMenu(e.clientX, e.clientY, plugin, file, wrapper, container, ctx, el, option);
     });
 
     return img;

@@ -40,11 +40,12 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
 
     // 为每个容器生成独立的 radio 分组名，避免多个代码块之间互相影响
     const sizeGroupName = `imgs-size-${Math.random().toString(36).slice(2, 8)}`;
+    const layoutGroupName = `imgs-layout-${Math.random().toString(36).slice(2, 8)}`;
 
     // setting 面板由 setupSettingPanel 创建；
     // 挂到 activeDocument.body 以彻底脱离 CodeMirror 渲染树，
     // 避免祖先元素的 transform/will-change 干扰 position:fixed 定位
-    const { panel, persistIfNeeded, limitCheckbox } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName);
+    const { panel, persistIfNeeded, limitCheckbox } = setupSettingPanel(option, plugin, ctx, el, container, sizeGroupName, layoutGroupName);
     activeDocument.body.appendChild(panel);
     // 关联 limitCheckbox，供蒙版点击时同步 UI 状态
     if (limitCheckbox) containerLimitCheckboxMap.set(container, limitCheckbox);
@@ -164,6 +165,7 @@ export function createContainer(option: SettingOptions, plugin: ImgRowPlugin, ct
  * @param el - 元素
  * @param container - 图片容器
  * @param sizeGroupName - 尺寸单选组名
+ * @param layoutGroupName - 布局模式单选组名
  * @returns 设置面板
  *   { panel: HTMLDivElement; persistIfNeeded: () => void; limitCheckbox: HTMLInputElement | null }
  *     panel: 设置面板
@@ -177,8 +179,9 @@ function setupSettingPanel(
     el: HTMLElement,
     container: HTMLDivElement,
     sizeGroupName: string,
+    layoutGroupName: string,
 ): { panel: HTMLDivElement; persistIfNeeded: () => void; limitCheckbox: HTMLInputElement | null } {
-    const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios }: SettingPanelDom = createSettingPanelDom(sizeGroupName);
+    const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios }: SettingPanelDom = createSettingPanelDom(sizeGroupName, layoutGroupName);
 
     // 注意：panel 的 DOM 挂载由调用方（createContainer）负责
 
@@ -200,6 +203,13 @@ function setupSettingPanel(
     });
     const sizeGroupEl = panel.querySelector<HTMLDivElement>(".plugin-image-setting-size-group");
     if (sizeGroupEl) sizeGroupEl.dataset.size = pickSizeLabel;
+
+    // 根据当前 layout 初始化布局模式单选状态
+    const layoutGroupEl = panel.querySelector<HTMLDivElement>(".plugin-image-setting-layout-group");
+    if (layoutGroupEl) layoutGroupEl.dataset.layout = option.layout;
+    layoutRadios.forEach((radio) => {
+        if (radio.dataset.layout === option.layout) radio.checked = true;
+    });
 
     // 标记当前面板中的设置是否有尚未写回文件的更改
     let hasPendingChanges = false;
@@ -269,6 +279,17 @@ function setupSettingPanel(
                     option.radius = config.LARGE_RADIUS;
                     break;
             }
+            applySettingsToContainer(container, option);
+            hasPendingChanges = true;
+        });
+    });
+    layoutRadios.forEach((radio) => {
+        radio.addEventListener("change", () => {
+            if (!radio.checked) return;
+            const layoutValue = radio.dataset.layout;
+            if (layoutValue !== "grid" && layoutValue !== "masonry") return;
+            if (layoutGroupEl) layoutGroupEl.dataset.layout = layoutValue;
+            option.layout = layoutValue;
             applySettingsToContainer(container, option);
             hasPendingChanges = true;
         });

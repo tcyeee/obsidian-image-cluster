@@ -24,10 +24,20 @@ export function createSettingButtonElement(): HTMLDivElement {
 }
 
 /**
- * 创建 setting 面板的 DOM 结构（尺寸单选 + 边框 / 阴影勾选）。
+ * 创建 setting 面板的 DOM 结构（布局模式单选 + 尺寸单选 + 边框 / 阴影勾选）。
  * 只负责元素创建与基础属性，勾选状态与事件绑定由调用方处理。
  */
-export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
+export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: string): SettingPanelDom {
+    // 布局模式分组（网格 / 瀑布流，滑块样式的按钮组）
+    const layoutGroup = createDiv({ cls: "plugin-image-setting-layout-group" });
+    layoutGroup.dataset.layout = "grid";
+
+    const layoutSlider = createDiv({ cls: "plugin-image-setting-layout-slider" });
+    layoutGroup.appendChild(layoutSlider);
+
+    layoutGroup.appendChild(createLayoutRadio("grid", "Grid", layoutGroupName));
+    layoutGroup.appendChild(createLayoutRadio("masonry", "Masonry", layoutGroupName));
+
     // 尺寸选项分组（滑块样式的按钮组）
     const sizeGroup = createDiv({ cls: "plugin-image-setting-size-group" });
     sizeGroup.dataset.size = "medium";
@@ -41,6 +51,11 @@ export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
     sizeGroup.appendChild(createSizeRadio("large", "L", sizeGroupName));
 
     const panel = createDiv({ cls: "plugin-image-setting-panel" });
+
+    const layoutSection = createDiv({ cls: "plugin-image-setting-section" });
+    layoutSection.appendChild(createSectionTitle("Layout"));
+    layoutSection.appendChild(layoutGroup);
+    panel.appendChild(layoutSection);
 
     const sizeSection = createDiv({ cls: "plugin-image-setting-section" });
     sizeSection.appendChild(createSectionTitle("Canvas size"));
@@ -66,8 +81,11 @@ export function createSettingPanelDom(sizeGroupName: string): SettingPanelDom {
     const sizeRadios = Array.from(
         panel.querySelectorAll<HTMLInputElement>('input[type="radio"][name="' + sizeGroupName + '"]'),
     );
+    const layoutRadios = Array.from(
+        panel.querySelectorAll<HTMLInputElement>('input[type="radio"][name="' + layoutGroupName + '"]'),
+    );
 
-    return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios };
+    return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios };
 }
 
 // 面板分组标题（如 "Canvas size" / "Appearance"）
@@ -84,6 +102,21 @@ function createSizeRadio(sizeKey: "small" | "medium" | "large", labelText: strin
     input.name = sizeGroupName;
 
     const textSpan = createSpan({ cls: "plugin-image-setting-size-radio-text", text: labelText });
+
+    label.appendChild(input);
+    label.appendChild(textSpan);
+    return label;
+}
+
+// 布局模式单选（网格 / 瀑布流，内部仍然使用 radio，外观是按钮组）
+function createLayoutRadio(layoutKey: "grid" | "masonry", labelText: string, layoutGroupName: string) {
+    const label = createEl("label", { cls: "plugin-image-setting-layout-radio" });
+
+    const input = createEl("input", { cls: "plugin-image-setting-layout-radio-input", type: "radio" });
+    input.dataset.layout = layoutKey;
+    input.name = layoutGroupName;
+
+    const textSpan = createSpan({ cls: "plugin-image-setting-layout-radio-text", text: labelText });
 
     label.appendChild(input);
     label.appendChild(textSpan);
