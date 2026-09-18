@@ -1,4 +1,4 @@
-import { TFile } from "obsidian";
+import { MarkdownPostProcessorContext, TFile } from "obsidian";
 import ImgRowPlugin from "main";
 import { SettingOptions } from "../core/domain";
 import { setCssProps } from "../core/dom";
@@ -13,6 +13,10 @@ import { openImageContextMenu } from "./image-context-menu";
  * @param src - 图片源
  * @param plugin - 插件实例，右键菜单里「用默认应用打开」等操作需要
  * @param file - 该图片对应的原图文件，右键菜单操作的目标
+ * @param wrapper - 该图片所在的 .plugin-image-wrapper，右键菜单里「排除/删除」操作需要
+ * @param container - 图片组容器，右键菜单里「排除/删除」操作持久化时需要
+ * @param ctx - Markdown 代码块处理上下文，右键菜单里「排除/删除」操作持久化时需要
+ * @param el - 代码块渲染根节点，右键菜单里「排除/删除」操作持久化时需要
  * @param srcList - 图片列表
  * @param idx - 图片索引
  * @returns 图片元素
@@ -22,6 +26,10 @@ export function createImage(
     src: string,
     plugin: ImgRowPlugin,
     file: TFile,
+    wrapper: HTMLElement,
+    container: HTMLDivElement,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
     srcList?: string[],
     idx?: number,
 ): HTMLImageElement {
@@ -71,7 +79,7 @@ export function createImage(
     // 右键：拦截原生菜单（此前指向缩略图缓存文件），改用自定义菜单
     img.addEventListener("contextmenu", e => {
         e.preventDefault();
-        openImageContextMenu(e.clientX, e.clientY, plugin, file);
+        openImageContextMenu(e.clientX, e.clientY, plugin, file, wrapper, container, ctx, el);
     });
 
     return img;
