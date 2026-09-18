@@ -1,6 +1,6 @@
-import { App, PluginSettingTab, Setting, SettingDefinitionItem } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, SettingDefinitionItem, TextComponent, ButtonComponent } from "obsidian";
 import ImgRowPlugin from "main";
-import { config, runtimeDefaults } from "./core/config";
+import { config, runtimeDefaults, isDotPrefixedCachePath, normalizeCacheFolderPath } from "./core/config";
 
 export interface ImgRowPluginSettings {
     defaultSize: "small" | "medium" | "large";
@@ -9,6 +9,7 @@ export interface ImgRowPluginSettings {
     enableHoverGroupButton: boolean;
     enableDragToGroup: boolean;
     enableThumbnailBorderTrim: boolean;
+    cachePath: string;
 }
 
 export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
     enableHoverGroupButton: true,
     enableDragToGroup: true,
     enableThumbnailBorderTrim: true,
+    cachePath: config.DEFAULT_THUMBNAIL_PATH,
 };
 
 /** 将插件设置同步写入 runtimeDefaults，使后续新建的图片组生效 */
@@ -40,6 +42,13 @@ export function applySettingsToConfig(settings: ImgRowPluginSettings) {
     }
     runtimeDefaults.border = settings.defaultBorder;
     runtimeDefaults.shadow = settings.defaultShadow;
+
+    // 防御性兜底：正常情况下设置页的 UI 已经拒绝了点开头的非法路径，这里再检查一次是
+    // 为了兼容 data.json 被手动编辑成非法值的情况，避免缓存目录悄悄变成 Obsidian 不索引的路径。
+    const normalizedCachePath = normalizeCacheFolderPath(settings.cachePath);
+    runtimeDefaults.thumbnailPath = isDotPrefixedCachePath(normalizedCachePath)
+        ? normalizeCacheFolderPath(config.DEFAULT_THUMBNAIL_PATH)
+        : normalizedCachePath;
 }
 
 export class ImgRowSettingTab extends PluginSettingTab {
@@ -134,6 +143,62 @@ export class ImgRowSettingTab extends PluginSettingTab {
                                 await this.plugin.saveSettings();
                             })
                     );
+                },
+            },
+            {
+                name: "Cache folder path",
+                desc: "Vault-relative folder where generated thumbnail cache files are stored. Leave blank to reset to the default (\"assets/cache/\"). Must not contain a dot-prefixed segment (e.g. \".cache\"), since Obsidian doesn't index those folders. Changing this does not move existing cache files — they stay in the old folder (safe to delete manually) and are regenerated at the new location on next use. Edits only take effect once you click the checkmark to confirm.",
+                render: (setting: Setting) => {
+                    let textComponent: TextComponent;
+                    let confirmButton: ButtonComponent;
+                    let cancelButton: ButtonComponent;
+
+                    // 确认/取消按钮只在输入框内容与已保存值不一致时出现，平时收起，避免占用设置面板空间。
+                    const refreshButtonsVisibility = () => {
+                        const hasPendingChange = textComponent.getValue() !== this.plugin.settings.cachePath;
+                        confirmButton.buttonEl.toggle(hasPendingChange);
+                        cancelButton.buttonEl.toggle(hasPendingChange);
+                    };
+
+                    setting.addText(text => {
+                        textComponent = text;
+                        text
+                            .setPlaceholder(config.DEFAULT_THUMBNAIL_PATH)
+                            .setValue(this.plugin.settings.cachePath)
+                            .onChange(() => refreshButtonsVisibility());
+                    });
+
+                    setting.addButton(button => {
+                        confirmButton = button;
+                        button
+                            .setIcon("check")
+                            .setTooltip("Apply")
+                            .setCta()
+                            .onClick(async () => {
+                                const rawValue = textComponent.getValue();
+                                if (isDotPrefixedCachePath(normalizeCacheFolderPath(rawValue))) {
+                                    new Notice('Cache folder path cannot contain a dot-prefixed segment (e.g. ".cache") — change was not applied.');
+                                    return;
+                                }
+                                this.plugin.settings.cachePath = rawValue;
+                                applySettingsToConfig(this.plugin.settings);
+                                await this.plugin.saveSettings();
+                                refreshButtonsVisibility();
+                            });
+                    });
+
+                    setting.addButton(button => {
+                        cancelButton = button;
+                        button
+                            .setIcon("x")
+                            .setTooltip("Discard")
+                            .onClick(() => {
+                                textComponent.setValue(this.plugin.settings.cachePath);
+                                refreshButtonsVisibility();
+                            });
+                    });
+
+                    refreshButtonsVisibility();
                 },
             },
             {

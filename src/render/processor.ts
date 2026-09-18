@@ -90,7 +90,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                         : originalSrc;
 
                     // 列表中展示缩略图，点击后仍然使用 srcList 中的原图
-                    const imgEl = createImage(option, thumbSrc, srcList, imgIdx);
+                    const imgEl = createImage(option, thumbSrc, plugin, file, wrapper, container, ctx, el, srcList, imgIdx);
                     wrapper.appendChild(imgEl);
                     container.appendChild(wrapper);
                     // 悬停时出现的「排除 / 删除」按钮

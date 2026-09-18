@@ -28,7 +28,7 @@ function relayoutIfMasonry(container: HTMLDivElement, option: SettingOptions): v
 }
 
 /** 排除：把图片移出图片组，重新以独立图片行的形式放到组正下方（缓存与原图不受影响）。 */
-function excludeImageBelowGroup(
+export function excludeImageBelowGroup(
     wrapper: HTMLElement,
     container: HTMLDivElement,
     plugin: ImgRowPlugin,
@@ -73,6 +73,44 @@ async function deleteImageFile(plugin: ImgRowPlugin, file: TFile): Promise<void>
 }
 
 /**
+ * 删除入口的共用流程：先检测原图是否还被 vault 中其他地方引用；
+ * 未被引用则直接删除，被引用则弹窗提醒，由用户选择仍然删除原图，还是改为仅从组中移除。
+ * 悬停按钮栏与图片右键菜单的「删除图片」共用这一份逻辑。
+ */
+export function confirmAndDeleteImage(
+    wrapper: HTMLElement,
+    file: TFile,
+    container: HTMLDivElement,
+    plugin: ImgRowPlugin,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+    option: SettingOptions,
+): void {
+    const otherRefCount = Math.max(0, countVaultReferences(plugin, file) - 1);
+
+    if (otherRefCount === 0) {
+        // 没有被其他地方引用：直接删除，无需弹窗确认
+        void (async () => {
+            await deleteImageFile(plugin, file);
+            removeImageFromGroup(wrapper, container, plugin, ctx, el, option);
+        })();
+        return;
+    }
+
+    new ConfirmDeleteImageModal(plugin.app, otherRefCount, (deleteOriginal) => {
+        void (async () => {
+            if (deleteOriginal) {
+                await deleteImageFile(plugin, file);
+                removeImageFromGroup(wrapper, container, plugin, ctx, el, option);
+            } else {
+                // 用户不同意删除原图：等同于排除，仅从组中移除
+                excludeImageBelowGroup(wrapper, container, plugin, ctx, el, option);
+            }
+        })();
+    }).open();
+}
+
+/**
  * 给图片组中的单张图片挂载 hover 时出现的「排除」「删除」按钮。
  *
  * 按钮栏刻意做成和官方「悬停单张图片 embed 时右上角那排按钮」同一个样子：
@@ -114,28 +152,7 @@ export function attachImageWrapperActions(
     deleteBtn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
-        const otherRefCount = Math.max(0, countVaultReferences(plugin, file) - 1);
-
-        if (otherRefCount === 0) {
-            // 没有被其他地方引用：直接删除，无需弹窗确认
-            void (async () => {
-                await deleteImageFile(plugin, file);
-                removeImageFromGroup(wrapper, container, plugin, ctx, el, option);
-            })();
-            return;
-        }
-
-        new ConfirmDeleteImageModal(plugin.app, otherRefCount, (deleteOriginal) => {
-            void (async () => {
-                if (deleteOriginal) {
-                    await deleteImageFile(plugin, file);
-                    removeImageFromGroup(wrapper, container, plugin, ctx, el, option);
-                } else {
-                    // 用户不同意删除原图：等同于排除，仅从组中移除
-                    excludeImageBelowGroup(wrapper, container, plugin, ctx, el, option);
-                }
-            })();
-        }).open();
+        confirmAndDeleteImage(wrapper, file, container, plugin, ctx, el, option);
     });
 
     actions.appendChild(excludeBtn);
