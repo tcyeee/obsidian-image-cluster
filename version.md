@@ -1,5 +1,16 @@
 # obsidian-image-cluster 更新日志
 
+## 1.4.6 · 2026-09-18
+
+- Right-clicking an image inside a group now opens a plugin-owned menu (Open in default app, Show in system explorer, Copy image) instead of Obsidian's native one, which previously pointed at the cached thumbnail file rather than the original image
+- The same menu now also offers "Remove from group" and "Delete image", reusing the logic already used by the hover action buttons
+- Added a "Cache folder path" setting so the thumbnail cache can be moved out of the hardcoded `assets/cache/` location, e.g. for backup/sync management
+- 图片组内右键图片，现在打开的是插件自己的菜单（在默认应用中打开、在系统文件管理器中显示、复制图片），不再是此前指向缓存缩略图文件（而非原图）的 Obsidian 原生菜单
+- 该菜单同时新增「从组中移除」和「删除图片」，复用悬停操作按钮的既有逻辑
+- 新增「缓存文件夹路径」设置，缩略图缓存可以移出硬编码的 `assets/cache/` 位置，便于备份/同步管理
+
+---
+
 ## 1.4.5 · 2026-09-03
 
 - A broken (404) image placeholder inside a group now shows a delete button on hover that strips just that broken link line from the `` ```imgs `` block — there is no source file to exclude or delete, so removing the dead link is the only meaningful action
