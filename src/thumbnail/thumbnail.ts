@@ -10,6 +10,11 @@ import { md5 } from "./md5";
 // 新元素也能在生成完成后收到 src 更新，而不是只有第一次调用时传入的（可能已被移除的）元素收到。
 const generatingThumbnails = new Map<string, Set<HTMLImageElement>>();
 
+/** 缩略图产出模式：grid 沿用现状的居中裁剪成正方形，masonry 保留长宽比等比缩放、不裁剪。 */
+export type ThumbnailMode = "grid" | "masonry";
+
+const THUMBNAIL_MODES: readonly ThumbnailMode[] = ["grid", "masonry"];
+
 /**
  * 缩略图实际生成的边长（正方形）：以 THUMBNAIL_SIZE（覆盖最大的 LARGE 展示尺寸）为基准，
  * 乘以当前屏幕的 devicePixelRatio（封顶 2x，避免 3x 高密度屏把缓存文件撑得过大）。
@@ -22,12 +27,19 @@ function getThumbnailTargetSide(): number {
 }
 
 /**
- * 缩略图缓存路径：THUMBNAIL_PATH + md5(file.path + 目标分辨率)。
+ * 缩略图缓存路径：THUMBNAIL_PATH + md5(file.path + 目标分辨率[ + 模式])。
  * 把分辨率一起写入哈希输入，这样当 devicePixelRatio 变化（例如换到 Retina 屏）导致
  * 目标分辨率变化时，会自动指向一个新的缓存文件而不是复用旧的低清晰度缩略图。
+ *
+ * mode 默认 "grid"，且哈希输入刻意不带任何后缀——与引入瀑布流之前完全一致，
+ * 保证已有用户的网格模式缓存不会因为这次改动而全部失效重新生成。masonry 模式的
+ * 产出（保留长宽比、不裁剪）与 grid 完全不同，必须落在不同的缓存文件，因此额外
+ * 加一个 "@masonry" 后缀，与 grid 的路径彻底分开、互不覆盖。
  */
-export function getThumbPath(filePath: string): string {
-  return normalizePath(`${config.THUMBNAIL_PATH}${md5(`${filePath}@${getThumbnailTargetSide()}`)}`);
+export function getThumbPath(filePath: string, mode: ThumbnailMode = "grid"): string {
+  const targetSide = getThumbnailTargetSide();
+  const hashInput = mode === "masonry" ? `${filePath}@${targetSide}@masonry` : `${filePath}@${targetSide}`;
+  return normalizePath(`${config.THUMBNAIL_PATH}${md5(hashInput)}`);
 }
 
 /**
@@ -37,7 +49,7 @@ export function getThumbPath(filePath: string): string {
  * 3. 写入 vault 的 cache 目录
  * 4. 生成完成后，刷新所有等待这次生成的 img 元素的 src
  */
-export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, thumbPath: string, imgEl: HTMLImageElement): Promise<void> {
+export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, thumbPath: string, imgEl: HTMLImageElement, mode: ThumbnailMode = "grid"): Promise<void> {
   // 同一缩略图已经有生成任务在进行：把这个 img 元素也加入等待列表，然后直接返回，
   // 不重复触发生成（避免并发 createBinary 报错），也不会遗漏这次调用的 img 更新。
   const pending = generatingThumbnails.get(thumbPath);
@@ -101,29 +113,45 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
 
     const loadedImg = await loadPromise;
 
-    // 目标缩略图为正方形：以较短边为边长进行居中裁剪，然后缩放到 targetSide
+    // grid 模式：目标缩略图为正方形，以较短边为边长进行居中裁剪，然后缩放到 targetSide。
+    // masonry 模式：不裁剪，只按长边基准（targetSide 对应列宽）等比缩放，保留原始长宽比。
     const targetSide = getThumbnailTargetSide();
     const { width, height } = loadedImg;
     if (!width || !height) return;
 
     // 部分设计稿/截图自带纯色留白（例如四周是黑色画布），直接按整图短边裁剪
     // 会把留白也一起保留在裁剪未触及的那条边上。这里先尝试去除留白，
-    // 再基于实际内容区域做居中方形裁剪，避免缩略图里出现大片纯色边。
+    // 再基于实际内容区域生成缩略图，避免缩略图里出现大片纯色边。
     // 这是一种启发式检测，理论上可能误裁到内容本身贴近纯色背景的图片，
-    // 因此提供开关，关闭后完全回退到原来的整图居中裁剪。
+    // 因此提供开关，关闭后完全回退到整图（不裁边）。
     const content = plugin.settings.enableThumbnailBorderTrim
         ? detectContentRect(loadedImg)
         : { sx: 0, sy: 0, sw: width, sh: height };
-    const cropSize = Math.min(content.sw, content.sh);
-    const sx = content.sx + (content.sw - cropSize) / 2;
-    const sy = content.sy + (content.sh - cropSize) / 2;
+
+    let sx: number, sy: number, sw: number, sh: number, canvasW: number, canvasH: number;
+    if (mode === "masonry") {
+        sx = content.sx;
+        sy = content.sy;
+        sw = content.sw;
+        sh = content.sh;
+        canvasW = targetSide;
+        canvasH = Math.max(1, Math.round((targetSide * sh) / sw));
+    } else {
+        const cropSize = Math.min(content.sw, content.sh);
+        sx = content.sx + (content.sw - cropSize) / 2;
+        sy = content.sy + (content.sh - cropSize) / 2;
+        sw = cropSize;
+        sh = cropSize;
+        canvasW = targetSide;
+        canvasH = targetSide;
+    }
 
     const canvas = createEl("canvas");
-    canvas.width = targetSide;
-    canvas.height = targetSide;
+    canvas.width = canvasW;
+    canvas.height = canvasH;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(loadedImg, sx, sy, cropSize, cropSize, 0, 0, targetSide, targetSide);
+    ctx.drawImage(loadedImg, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
 
     // 缩略图统一生成为 JPG 格式
     const mimeType = "image/jpeg";
@@ -181,8 +209,6 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
  * 这里监听 vault 的 rename/delete 事件，让缓存跟着原图重命名/删除。
  */
 export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
-  const thumbPathFor = getThumbPath;
-
   plugin.registerEvent(
     plugin.app.vault.on("rename", (file, oldPath) => {
       // 缓存目录自身文件的 rename/delete 不需要（也不应该）触发这里的逻辑，
@@ -191,17 +217,21 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
         return;
       }
       void (async () => {
-        const oldThumbPath = thumbPathFor(oldPath);
-        const oldThumb = plugin.app.vault.getAbstractFileByPath(oldThumbPath);
-        if (!(oldThumb instanceof TFile)) return; // 原本就没有缓存，无需迁移
+        // grid / masonry 各自独立的缓存文件都要跟着迁移，否则未被当前笔记使用的
+        // 那一种模式的缓存会在旧路径下变成孤儿。
+        for (const mode of THUMBNAIL_MODES) {
+          const oldThumbPath = getThumbPath(oldPath, mode);
+          const oldThumb = plugin.app.vault.getAbstractFileByPath(oldThumbPath);
+          if (!(oldThumb instanceof TFile)) continue; // 该模式原本就没有缓存，无需迁移
 
-        const newThumbPath = thumbPathFor(file.path);
-        if (plugin.app.vault.getAbstractFileByPath(newThumbPath)) return; // 目标路径已有缓存，保留旧缓存原样，避免覆盖
+          const newThumbPath = getThumbPath(file.path, mode);
+          if (plugin.app.vault.getAbstractFileByPath(newThumbPath)) continue; // 目标路径已有缓存，保留旧缓存原样，避免覆盖
 
-        try {
-          await plugin.app.vault.rename(oldThumb, newThumbPath);
-        } catch (error: unknown) {
-          console.error("Failed to migrate thumbnail cache after rename", oldPath, "->", file.path, error);
+          try {
+            await plugin.app.vault.rename(oldThumb, newThumbPath);
+          } catch (error: unknown) {
+            console.error("Failed to migrate thumbnail cache after rename", oldPath, "->", file.path, mode, error);
+          }
         }
       })();
     }),
@@ -211,14 +241,16 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
     plugin.app.vault.on("delete", (file) => {
       if (!(file instanceof TFile) || file.path.startsWith(config.THUMBNAIL_PATH)) return;
       void (async () => {
-        const thumbPath = thumbPathFor(file.path);
-        const thumb = plugin.app.vault.getAbstractFileByPath(thumbPath);
-        // 通过插件自带删除按钮删除时，缓存已经被 image-actions.ts 提前删掉，这里查不到，直接跳过。
-        if (!(thumb instanceof TFile)) return;
-        try {
-          await plugin.app.fileManager.trashFile(thumb);
-        } catch (error: unknown) {
-          console.error("Failed to clean up thumbnail cache after delete", file.path, error);
+        for (const mode of THUMBNAIL_MODES) {
+          const thumbPath = getThumbPath(file.path, mode);
+          const thumb = plugin.app.vault.getAbstractFileByPath(thumbPath);
+          // 通过插件自带删除按钮删除时，缓存已经被 image-actions.ts 提前删掉，这里查不到，直接跳过。
+          if (!(thumb instanceof TFile)) continue;
+          try {
+            await plugin.app.fileManager.trashFile(thumb);
+          } catch (error: unknown) {
+            console.error("Failed to clean up thumbnail cache after delete", file.path, mode, error);
+          }
         }
       })();
     }),
@@ -254,7 +286,11 @@ export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise
   for (const file of plugin.app.vault.getFiles()) {
     if (!IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) continue;
     if (file.path.startsWith(config.THUMBNAIL_PATH)) continue;
-    validThumbPaths.add(getThumbPath(file.path));
+    // 两种模式的缓存路径都算作有效，即便笔记里当前只用到其中一种——
+    // 不扫描 markdown 反推"实际用了哪种模式"，宁可保守保留，也不误删另一模式仍然有效的缓存。
+    for (const mode of THUMBNAIL_MODES) {
+      validThumbPaths.add(getThumbPath(file.path, mode));
+    }
   }
 
   let removed = 0;

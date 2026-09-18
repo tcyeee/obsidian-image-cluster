@@ -78,9 +78,9 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     const imgIdx = srcList.length;
                     srcList.push(originalSrc);
 
-                    // 缩略图路径（相对于 vault 根目录），按源文件路径 + 目标分辨率哈希得到，
+                    // 缩略图路径（相对于 vault 根目录），按源文件路径 + 目标分辨率 + 显示模式哈希得到，
                     // 详见 getThumbPath 注释。
-                    const thumbPath = getThumbPath(file.path);
+                    const thumbPath = getThumbPath(file.path, option.layout);
                     // 缩略图文件对象
 
                     const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
@@ -94,11 +94,11 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     wrapper.appendChild(imgEl);
                     container.appendChild(wrapper);
                     // 悬停时出现的「排除 / 删除」按钮
-                    attachImageWrapperActions(wrapper, file, container, plugin, ctx, el);
+                    attachImageWrapperActions(wrapper, file, container, plugin, ctx, el, option);
 
                     // 如果当前还没有缩略图，则在后台异步生成一份，并在生成后刷新当前 img 的 src
                     if (!(thumbFile instanceof TFile)) {
-                        void ensureThumbnailForFile(plugin, file, thumbPath, imgEl);
+                        void ensureThumbnailForFile(plugin, file, thumbPath, imgEl, option.layout);
                     }
                 } else {
                     // 如果图片不存在，则在对应位置插入错误图标。
@@ -108,7 +108,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     wrapper.appendChild(createErrorDiv(option));
                     container.appendChild(wrapper);
                     // 悬停时出现「删除」按钮，让用户摘掉这条指向不存在图片的坏链接
-                    attachImageErrorActions(wrapper, container, plugin, ctx, el);
+                    attachImageErrorActions(wrapper, container, plugin, ctx, el, option);
                 }
             });
         }
@@ -170,7 +170,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                 }
             }
             // 编辑模式下启用图片拖拽排序
-            enableDragSort(container, plugin, ctx, el);
+            enableDragSort(container, option, plugin, ctx, el);
         });
     });
 }

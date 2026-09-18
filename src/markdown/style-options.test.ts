@@ -12,7 +12,7 @@ describe("parseStyleOptions", () => {
     });
 
     it("parses every recognized key from the config line", () => {
-        const source = "size=220&gap=10&radius=10&shadow=true&border=true&hidden=true&limit=true&padding-left=28;;\n![[a.png]]";
+        const source = "size=220&gap=10&radius=10&shadow=true&border=true&hidden=true&limit=true&padding-left=28&layout=masonry;;\n![[a.png]]";
         const options = parseStyleOptions(source);
         expect(options.size).toBe(220);
         expect(options.gap).toBe(10);
@@ -22,6 +22,12 @@ describe("parseStyleOptions", () => {
         expect(options.hidden).toBe(true);
         expect(options.limit).toBe(true);
         expect(options.paddingLeft).toBe(28);
+        expect(options.layout).toBe("masonry");
+    });
+
+    it("defaults layout to grid when there is no layout= key, and ignores unrecognized values", () => {
+        expect(parseStyleOptions("size=220;;\n![[a.png]]").layout).toBe("grid");
+        expect(parseStyleOptions("layout=bogus;;\n![[a.png]]").layout).toBe("grid");
     });
 
     it("ignores out-of-range numeric values, keeping the default", () => {
@@ -45,6 +51,7 @@ describe("parseStyleOptions", () => {
         options.hidden = true;
         options.limit = false;
         options.paddingLeft = 28;
+        options.layout = "masonry";
 
         const line = options.buildStyleLineConfig();
         const reparsed = parseStyleOptions(`${line};;\n![[a.png]]`);
@@ -57,5 +64,6 @@ describe("parseStyleOptions", () => {
         expect(reparsed.hidden).toBe(options.hidden);
         expect(reparsed.limit).toBe(options.limit);
         expect(reparsed.paddingLeft).toBe(options.paddingLeft);
+        expect(reparsed.layout).toBe(options.layout);
     });
 });

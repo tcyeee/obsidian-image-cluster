@@ -1,9 +1,13 @@
 import ImgRowPlugin from "main";
 import { MarkdownPostProcessorContext, TFile, setIcon } from "obsidian";
-import { getThumbPath } from "../thumbnail/thumbnail";
+import { SettingOptions } from "../core/domain";
+import { getThumbPath, ThumbnailMode } from "../thumbnail/thumbnail";
 import { persistExcludeImageToSource, persistRemoveImageFromSource } from "../markdown/persistence";
 import { ConfirmDeleteImageModal } from "./confirm-delete-modal";
 import { collectWrapperImageLines } from "./elements";
+import { applyMasonryLayout } from "./layout";
+
+const THUMBNAIL_MODES: readonly ThumbnailMode[] = ["grid", "masonry"];
 
 /**
  * 统计 vault 中所有指向 file 的链接/嵌入总数（含当前这一处引用）。
@@ -18,6 +22,11 @@ function countVaultReferences(plugin: ImgRowPlugin, file: TFile): number {
     return total;
 }
 
+/** 瀑布流模式下，摘除一个 wrapper 后需要手动重新计算列位置（原因见 drag-sort.ts 的同名逻辑）。 */
+function relayoutIfMasonry(container: HTMLDivElement, option: SettingOptions): void {
+    if (option.layout === "masonry") applyMasonryLayout(container, option);
+}
+
 /** 排除：把图片移出图片组，重新以独立图片行的形式放到组正下方（缓存与原图不受影响）。 */
 function excludeImageBelowGroup(
     wrapper: HTMLElement,
@@ -25,9 +34,11 @@ function excludeImageBelowGroup(
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
+    option: SettingOptions,
 ): void {
     const imgLine = wrapper.dataset.imgLine ?? "";
     wrapper.remove();
+    relayoutIfMasonry(container, option);
     void persistExcludeImageToSource(collectWrapperImageLines(container), plugin, ctx, el, imgLine);
 }
 
@@ -38,17 +49,25 @@ function removeImageFromGroup(
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
+    option: SettingOptions,
 ): void {
     wrapper.remove();
+    relayoutIfMasonry(container, option);
     void persistRemoveImageFromSource(collectWrapperImageLines(container), plugin, ctx, el);
 }
 
-/** 删除缓存缩略图与原图文件（走系统/Obsidian 回收站，而非直接抹除，与核心「删除文件」命令保持一致）。 */
+/**
+ * 删除缓存缩略图与原图文件（走系统/Obsidian 回收站，而非直接抹除，与核心「删除文件」命令保持一致）。
+ * grid / masonry 两种模式各自独立的缓存都尝试删除——原图本身都没了，不管当前笔记用的是
+ * 哪种模式，另一种模式的缓存留着也只会变成孤儿，不如借这次操作顺手一并清掉。
+ */
 async function deleteImageFile(plugin: ImgRowPlugin, file: TFile): Promise<void> {
-    const thumbPath = getThumbPath(file.path);
-    const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
-    if (thumbFile instanceof TFile) {
-        await plugin.app.fileManager.trashFile(thumbFile);
+    for (const mode of THUMBNAIL_MODES) {
+        const thumbPath = getThumbPath(file.path, mode);
+        const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
+        if (thumbFile instanceof TFile) {
+            await plugin.app.fileManager.trashFile(thumbFile);
+        }
     }
     await plugin.app.fileManager.trashFile(file);
 }
@@ -74,6 +93,7 @@ export function attachImageWrapperActions(
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
+    option: SettingOptions,
 ): void {
     const actions = createDiv({ cls: "plugin-image-item-actions" });
 
@@ -84,7 +104,7 @@ export function attachImageWrapperActions(
     excludeBtn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
-        excludeImageBelowGroup(wrapper, container, plugin, ctx, el);
+        excludeImageBelowGroup(wrapper, container, plugin, ctx, el, option);
     });
 
     const deleteBtn = createDiv({ cls: "embed-action plugin-image-item-action-btn plugin-image-item-action-btn--danger" });
@@ -100,7 +120,7 @@ export function attachImageWrapperActions(
             // 没有被其他地方引用：直接删除，无需弹窗确认
             void (async () => {
                 await deleteImageFile(plugin, file);
-                removeImageFromGroup(wrapper, container, plugin, ctx, el);
+                removeImageFromGroup(wrapper, container, plugin, ctx, el, option);
             })();
             return;
         }
@@ -109,10 +129,10 @@ export function attachImageWrapperActions(
             void (async () => {
                 if (deleteOriginal) {
                     await deleteImageFile(plugin, file);
-                    removeImageFromGroup(wrapper, container, plugin, ctx, el);
+                    removeImageFromGroup(wrapper, container, plugin, ctx, el, option);
                 } else {
                     // 用户不同意删除原图：等同于排除，仅从组中移除
-                    excludeImageBelowGroup(wrapper, container, plugin, ctx, el);
+                    excludeImageBelowGroup(wrapper, container, plugin, ctx, el, option);
                 }
             })();
         }).open();
@@ -137,6 +157,7 @@ export function attachImageErrorActions(
     plugin: ImgRowPlugin,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
+    option: SettingOptions,
 ): void {
     const actions = createDiv({ cls: "plugin-image-item-actions" });
 
@@ -147,7 +168,7 @@ export function attachImageErrorActions(
     deleteBtn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
-        removeImageFromGroup(wrapper, container, plugin, ctx, el);
+        removeImageFromGroup(wrapper, container, plugin, ctx, el, option);
     });
 
     actions.appendChild(deleteBtn);

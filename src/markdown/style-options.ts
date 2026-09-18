@@ -5,11 +5,11 @@ import { SettingOptions } from "../core/domain";
  * @param source - 代码块内容
  *
  * 配置行格式：
- *   size=220&gap=10&radius=10&shadow=false&border=false&hidden=false&limit=false;;
+ *   size=220&gap=10&radius=10&shadow=false&border=false&hidden=false&limit=false&layout=grid;;
  *   ![img](...)
  *
  * 返回配置对象：
- *   { size: 220, gap: 10, radius: 10, shadow: false, border: false, hidden: false, limit: false }
+ *   { size: 220, gap: 10, radius: 10, shadow: false, border: false, hidden: false, limit: false, layout: "grid" }
  */
 export function parseStyleOptions(source: string): SettingOptions {
   const settings = new SettingOptions();
@@ -36,6 +36,7 @@ export function parseStyleOptions(source: string): SettingOptions {
       const px = Number(value);
       if (Number.isFinite(px) && px >= 0) settings.paddingLeft = px;
     }
+    if (key == "layout" && (value === "grid" || value === "masonry")) settings.layout = value;
   }
   return settings;
 }

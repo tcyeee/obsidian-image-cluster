@@ -1,5 +1,7 @@
 import { config, runtimeDefaults } from "./config";
 
+export type ImageGroupLayout = "grid" | "masonry";
+
 export class SettingOptions {
     size: number = runtimeDefaults.size;
     radius: number = runtimeDefaults.radius;
@@ -9,6 +11,8 @@ export class SettingOptions {
     hidden: boolean = config.DEFAULT_HIDDEN;
     limit: boolean = config.DEFAULT_LIMIT;
     paddingLeft: number = config.DEFAULT_PADDING_LEFT;
+    // 旧配置行没有 layout= 字段时，兜底为网格模式，保持已有笔记的视觉效果不突变。
+    layout: ImageGroupLayout = "grid";
 
     /**
      * 将 SettingOptions 转为配置行字符串，供 parseStyleOptions 使用。
@@ -23,6 +27,7 @@ export class SettingOptions {
         parts.push(`hidden=${this.hidden}`);
         parts.push(`limit=${this.limit}`);
         parts.push(`padding-left=${this.paddingLeft}`);
+        parts.push(`layout=${this.layout}`);
         return parts.join("&");
     }
 }
@@ -35,4 +40,5 @@ export interface SettingPanelDom {
     limitCheckbox: HTMLInputElement | null;
     paddingLeftCheckbox: HTMLInputElement | null;
     sizeRadios: HTMLInputElement[];
+    layoutRadios: HTMLInputElement[];
 }

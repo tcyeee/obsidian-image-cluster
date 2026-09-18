@@ -89,8 +89,14 @@ export function applySettingsToContainer(container: HTMLDivElement, option: Sett
         applyWrapperPreferredClass(img, wrapper, "plugin-image-hidden", option.hidden);
     });
 
-    // 根据 limit 选项，决定是否只显示前三行图片
-    applyLimitRows(container, option, onLimitTogglePersist);
+    // 网格模式：均匀方格由 CSS flex-wrap 负责排布，这里只需要处理"只显示前三行"的折叠。
+    // 瀑布流模式：列位置与折叠都由 JS 显式计算（见 applyMasonryLayout），两者互斥。
+    container.dataset.layout = option.layout;
+    if (option.layout === "masonry") {
+        applyMasonryLayout(container, option, onLimitTogglePersist);
+    } else {
+        applyLimitRows(container, option, onLimitTogglePersist);
+    }
 }
 
 /**
@@ -228,4 +234,175 @@ function applyLimitRows(container: HTMLDivElement, option: SettingOptions, onLim
 
     // 首次调用仍然放在 requestAnimationFrame 中，避免同步强制布局
     window.requestAnimationFrame(runLimit);
+}
+
+// 容器宽度变化（例如笔记面板被拖拽调整、分屏）时，需要重新计算瀑布流列位置——
+// 与网格模式不同，瀑布流的坐标是 JS 显式算好写死的，不会随 CSS flex-wrap 自动重排。
+// 用 WeakMap 保证同一个容器最多只挂一个 ResizeObserver，避免每次 applyMasonryLayout
+// 调用都重复 observe 导致回调越叠越多。
+const masonryResizeObservers = new WeakMap<HTMLDivElement, ResizeObserver>();
+
+function ensureMasonryResizeObserver(
+    container: HTMLDivElement,
+    option: SettingOptions,
+    onLimitTogglePersist?: () => void,
+): void {
+    if (masonryResizeObservers.has(container)) return;
+    let lastWidth = container.clientWidth;
+    const observer = new ResizeObserver(() => {
+        const width = container.clientWidth;
+        if (width === lastWidth) return;
+        lastWidth = width;
+        applyMasonryLayout(container, option, onLimitTogglePersist);
+    });
+    observer.observe(container);
+    masonryResizeObservers.set(container, observer);
+}
+
+/**
+ * 瀑布流布局：按每张图片的原始长宽比多列排布，不裁剪、不留白。
+ *
+ * 技术选型：JS 显式计算每张图片的列位置（而非 CSS column-count），代价是实现更复杂，
+ * 换来的是能严格保持"先行后列"的阅读顺序（贪心选当前最短的列），与拖拽排序、
+ * +N 折叠的直觉顺序保持一致——CSS column-count 是先列后行，顺序观感会很不自然。
+ *
+ * 定位方式：所有 .plugin-image-wrapper 仍然保持原始 DOM 顺序（不做任何重新插入/分组），
+ * 只是在瀑布流模式下用 CSS 变量 --plugin-masonry-left / --plugin-masonry-top /
+ * --plugin-image-height 把每个 wrapper 改成 position: absolute 定位（见 styles.css）。
+ * 这一点很关键：collectWrapperImageLines（drag-sort/持久化都依赖它）是按 DOM 顺序收集
+ * markdown 行的，保持 DOM 顺序不变，才能保证瀑布流下拖拽排序、持久化仍然正确。
+ *
+ * 列宽直接复用当前的 S/M/L 画布尺寸（option.size），不额外引入独立的列数/列宽设置。
+ */
+export function applyMasonryLayout(
+    container: HTMLDivElement,
+    option: SettingOptions,
+    onLimitTogglePersist?: () => void,
+): void {
+    const columnWidth = option.size;
+    const gap = option.gap;
+
+    let retryCount = 0;
+
+    const run = () => {
+        const items = Array.from(container.querySelectorAll<HTMLElement>(":scope > .plugin-image-wrapper"));
+        if (items.length === 0) {
+            setCssProps(container, { "--plugin-masonry-height": "0px" });
+            return;
+        }
+
+        // 容器还没有正确布局（宽度为 0，例如笔记面板还在布局中）：有限次重试，
+        // 避免"首次打开页面时列数算错"的问题（与 applyLimitRows 的重试策略一致）。
+        if (container.clientWidth === 0 && retryCount < config.LIMIT_MAX_RETRY) {
+            retryCount++;
+            window.setTimeout(run, config.LIMIT_DELAY);
+            return;
+        }
+
+        // 预清理：移除上一次遗留的蒙版/折叠状态，重新计算
+        items.forEach((el) => {
+            el.classList.remove("plugin-image-row-hidden", "plugin-image-more-wrapper");
+            const oldMask = el.querySelector<HTMLDivElement>(".plugin-image-more-mask");
+            if (oldMask) oldMask.remove();
+        });
+
+        const columns = Math.max(1, Math.floor((container.clientWidth + gap) / (columnWidth + gap)));
+        const colHeights = new Array<number>(columns).fill(0);
+
+        // 折叠阈值：沿用网格模式"N 行 = N × (图片尺寸 + 间距)"的换算公式，保证用户从
+        // 网格切到瀑布流时"显示多少内容"的直觉不突变。
+        const thresholdPx = option.limit ? config.MAX_VISIBLE_ROWS * (option.size + option.gap) : Infinity;
+
+        let fullMaxBottom = 0;
+        let visibleMaxBottom = 0;
+        let hiddenCount = 0;
+        const colTruncated = new Array<boolean>(columns).fill(false);
+        const colLastVisibleEl = new Array<HTMLElement | null>(columns).fill(null);
+        const colVisibleBottom = new Array<number>(columns).fill(0);
+
+        for (const el of items) {
+            const img = el.querySelector<HTMLImageElement>("img.plugin-image");
+            let itemHeight = columnWidth; // 加载失败的错误占位块没有 img，保持方形
+            if (img) {
+                if (img.naturalWidth && img.naturalHeight) {
+                    itemHeight = Math.round((columnWidth * img.naturalHeight) / img.naturalWidth);
+                } else {
+                    // 图片还没加载完，先按方形占位；加载完成后用最新的长宽比重新计算一次
+                    // （naturalWidth/Height 此时才可用）。只监听一次即可：本插件生成的
+                    // 缩略图与原图长宽比始终一致，后续 src 从原图切换到缓存缩略图不会
+                    // 改变比例，不需要重复监听。
+                    img.addEventListener("load", () => applyMasonryLayout(container, option, onLimitTogglePersist), { once: true });
+                }
+            }
+
+            // 贪心选择当前累计高度最小的列，保持整体"先行后列"的阅读顺序
+            let colIdx = 0;
+            for (let i = 1; i < columns; i++) {
+                if (colHeights[i] < colHeights[colIdx]) colIdx = i;
+            }
+
+            const top = colHeights[colIdx];
+            const left = colIdx * (columnWidth + gap);
+            setCssProps(el, {
+                "--plugin-masonry-left": `${left}px`,
+                "--plugin-masonry-top": `${top}px`,
+                "--plugin-image-height": `${itemHeight}px`,
+            });
+            colHeights[colIdx] = top + itemHeight + gap;
+
+            const bottom = top + itemHeight;
+            fullMaxBottom = Math.max(fullMaxBottom, bottom);
+
+            if (bottom > thresholdPx) {
+                // 这张图会让所在列超出折叠阈值：这张及之后排入该列的图都归入 "+N" 折叠部分
+                el.classList.add("plugin-image-row-hidden");
+                hiddenCount++;
+                colTruncated[colIdx] = true;
+            } else {
+                visibleMaxBottom = Math.max(visibleMaxBottom, bottom);
+                colLastVisibleEl[colIdx] = el;
+                colVisibleBottom[colIdx] = bottom;
+            }
+        }
+
+        if (hiddenCount > 0) {
+            // "+N" 徽标固定叠加在被截断的最短列的最后一张可见图上：
+            // 在所有发生截断的列中，选可见高度最小的那一列，视觉上最不容易被相邻更高的列遮挡。
+            let overlayCol = -1;
+            let overlayHeight = Infinity;
+            for (let c = 0; c < columns; c++) {
+                if (colTruncated[c] && colLastVisibleEl[c] && colVisibleBottom[c] < overlayHeight) {
+                    overlayHeight = colVisibleBottom[c];
+                    overlayCol = c;
+                }
+            }
+            const overlayEl = overlayCol !== -1 ? colLastVisibleEl[overlayCol] : null;
+            if (overlayEl) {
+                overlayEl.classList.add("plugin-image-more-wrapper");
+                const mask = createDiv({ cls: "plugin-image-more-mask" });
+                const text = createSpan({ cls: "plugin-image-more-text", text: `+ ${hiddenCount}` });
+                mask.appendChild(text);
+
+                mask.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+                    option.limit = false;
+                    const limitCheckbox = containerLimitCheckboxMap.get(container);
+                    if (limitCheckbox) limitCheckbox.checked = false;
+                    applySettingsToContainer(container, option);
+                    if (onLimitTogglePersist) onLimitTogglePersist();
+                });
+
+                overlayEl.appendChild(mask);
+            }
+        }
+
+        setCssProps(container, {
+            "--plugin-masonry-height": `${hiddenCount > 0 ? visibleMaxBottom : fullMaxBottom}px`,
+        });
+
+        ensureMasonryResizeObserver(container, option, onLimitTogglePersist);
+    };
+
+    window.requestAnimationFrame(run);
 }
