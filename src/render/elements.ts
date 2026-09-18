@@ -73,6 +73,17 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
     appearanceSection.appendChild(checkboxList);
     panel.appendChild(appearanceSection);
 
+    // 面板底部：跳转到插件设置页（与上方分组用分割线隔开，事件绑定由调用方处理）
+    const footer = createDiv({ cls: "plugin-image-setting-footer" });
+    const pluginSettingsBtn = createDiv({ cls: "plugin-image-setting-footer-btn" });
+    const pluginSettingsIcon = createSpan({ cls: "plugin-image-setting-footer-btn-icon" });
+    setIcon(pluginSettingsIcon, "settings");
+    const pluginSettingsLabel = createSpan({ cls: "plugin-image-setting-footer-btn-label", text: "Plugin settings" });
+    pluginSettingsBtn.appendChild(pluginSettingsIcon);
+    pluginSettingsBtn.appendChild(pluginSettingsLabel);
+    footer.appendChild(pluginSettingsBtn);
+    panel.appendChild(footer);
+
     const borderCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="border"]');
     const shadowCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="shadow"]');
     const hiddenCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="hidden"]');
@@ -85,7 +96,7 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
         panel.querySelectorAll<HTMLInputElement>('input[type="radio"][name="' + layoutGroupName + '"]'),
     );
 
-    return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios };
+    return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios, pluginSettingsBtn };
 }
 
 // 面板分组标题（如 "Canvas size" / "Appearance"）
