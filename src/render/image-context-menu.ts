@@ -86,7 +86,7 @@ function buildMenuItems(
         onClick: async () => {
             try {
                 await copyImageToClipboard(plugin, file);
-            } catch (e) {
+            } catch (e: unknown) {
                 new Notice("Copy image failed");
                 console.error(e);
             }
