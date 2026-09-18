@@ -1,11 +1,15 @@
-import { Notice, Platform, TFile, setIcon } from "obsidian";
+import { MarkdownPostProcessorContext, Notice, Platform, TFile, setIcon } from "obsidian";
 import ImgRowPlugin from "main";
 import { setCssProps } from "../core/dom";
+import { confirmAndDeleteImage, excludeImageBelowGroup } from "./image-actions";
 
 interface ContextMenuItemSpec {
     icon: string;
     label: string;
     onClick: () => void | Promise<void>;
+    danger?: boolean;
+    /** 在这一项之前插入分隔线，用于把「排除/删除」等结构性操作与上面的文件操作分组。 */
+    separatorBefore?: boolean;
 }
 
 // app.openWithDefaultApp / app.showInFolder 是 Obsidian 桌面端的运行时方法，
@@ -57,7 +61,14 @@ async function copyImageToClipboard(plugin: ImgRowPlugin, file: TFile): Promise<
     await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
 }
 
-function buildMenuItems(plugin: ImgRowPlugin, file: TFile): ContextMenuItemSpec[] {
+function buildMenuItems(
+    plugin: ImgRowPlugin,
+    file: TFile,
+    wrapper: HTMLElement,
+    container: HTMLDivElement,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+): ContextMenuItemSpec[] {
     const items: ContextMenuItemSpec[] = [];
 
     // 「用默认应用打开」「在系统访达中显示」依赖桌面端文件系统，移动端不展示。
@@ -82,6 +93,21 @@ function buildMenuItems(plugin: ImgRowPlugin, file: TFile): ContextMenuItemSpec[
         },
     });
 
+    items.push(
+        {
+            icon: "circle-minus",
+            label: "Remove from group",
+            separatorBefore: true,
+            onClick: () => excludeImageBelowGroup(wrapper, container, plugin, ctx, el),
+        },
+        {
+            icon: "trash-2",
+            label: "Delete image",
+            danger: true,
+            onClick: () => confirmAndDeleteImage(wrapper, file, container, plugin, ctx, el),
+        },
+    );
+
     return items;
 }
 
@@ -92,12 +118,25 @@ let closeActiveMenu: (() => void) | null = null;
  * 在指定视口坐标弹出图片的自定义右键菜单。
  * 设计语言与图片组的 setting 面板保持一致（圆角浮层 + 阴影 + 主背景色）。
  */
-export function openImageContextMenu(x: number, y: number, plugin: ImgRowPlugin, file: TFile): void {
+export function openImageContextMenu(
+    x: number,
+    y: number,
+    plugin: ImgRowPlugin,
+    file: TFile,
+    wrapper: HTMLElement,
+    container: HTMLDivElement,
+    ctx: MarkdownPostProcessorContext,
+    el: HTMLElement,
+): void {
     closeActiveMenu?.();
 
     const menu = createDiv({ cls: "plugin-image-context-menu" });
-    buildMenuItems(plugin, file).forEach(({ icon, label, onClick }) => {
+    buildMenuItems(plugin, file, wrapper, container, ctx, el).forEach(({ icon, label, onClick, danger, separatorBefore }) => {
+        if (separatorBefore) {
+            menu.appendChild(createDiv({ cls: "plugin-image-context-menu-separator" }));
+        }
         const item = createDiv({ cls: "plugin-image-context-menu-item" });
+        if (danger) item.addClass("plugin-image-context-menu-item--danger");
         const iconEl = createSpan({ cls: "plugin-image-context-menu-item-icon" });
         setIcon(iconEl, icon);
         const labelEl = createSpan({ cls: "plugin-image-context-menu-item-label", text: label });

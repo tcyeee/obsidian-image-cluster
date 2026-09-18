@@ -284,6 +284,15 @@
 .plugin-image-context-menu-item-label {
   white-space: nowrap;
 }
+.plugin-image-context-menu-item--danger .plugin-image-context-menu-item-icon,
+.plugin-image-context-menu-item--danger .plugin-image-context-menu-item-label {
+  color: var(--text-error, #e93147);
+}
+.plugin-image-context-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--background-modifier-border);
+}
 
 .plugin-image-panel-safe-zone {
   position: absolute;
