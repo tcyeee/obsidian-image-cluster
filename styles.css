@@ -198,7 +198,7 @@
 .plugin-image-container {
 	display: flex;
 	flex-wrap: wrap;
-	padding: 8px 0;
+	padding: var(--plugin-container-pad-y, 8px) 0;
   gap: var(--plugin-container-gap, 10px);
   margin-left: var(--plugin-container-margin-left, 0);
   position: relative; /* 保证setting按钮绝对定位参照容器 */
@@ -213,12 +213,16 @@
    wrapper，这里只负责把它们从 flex 流中摘出来按坐标绝对定位。容器本身的 flex-wrap
    对绝对定位的子元素没有影响，不需要额外切换 display。 */
 .plugin-image-container[data-layout="masonry"] {
-  height: var(--plugin-masonry-height, auto);
+  height: calc(var(--plugin-masonry-height, 0px) + var(--plugin-container-pad-y, 8px));
 }
 .plugin-image-container[data-layout="masonry"] > .plugin-image-wrapper {
   position: absolute;
+  /* 绝对定位子元素以容器的 padding box（而非 content box）为定位参照，
+     top: 0 会紧贴边框、无视容器自身的 padding-top —— 这与网格模式下
+     flex 布局的图片天然被 padding-top 撑开不一致。这里用 calc 手动补上
+     同一份 padding-top，保证两种布局模式顶部间距一致。 */
   left: var(--plugin-masonry-left, 0px);
-  top: var(--plugin-masonry-top, 0px);
+  top: calc(var(--plugin-masonry-top, 0px) + var(--plugin-container-pad-y, 8px));
   width: var(--plugin-image-size, 220px);
   height: var(--plugin-image-height, var(--plugin-image-size, 220px));
 }
