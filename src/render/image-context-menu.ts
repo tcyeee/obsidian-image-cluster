@@ -3,6 +3,7 @@ import ImgRowPlugin from "main";
 import { SettingOptions } from "../core/domain";
 import { setCssProps } from "../core/dom";
 import { confirmAndDeleteImage, excludeImageBelowGroup } from "./image-actions";
+import { t } from "../i18n";
 
 interface ContextMenuItemSpec {
     icon: string;
@@ -77,19 +78,19 @@ function buildMenuItems(
     if (Platform.isDesktopApp) {
         const app = plugin.app as unknown as typeof plugin.app & DesktopFileActions;
         items.push(
-            { icon: "external-link", label: "Open in default app", onClick: () => app.openWithDefaultApp(file.path) },
-            { icon: "folder-open", label: "Show in system explorer", onClick: () => app.showInFolder(file.path) },
+            { icon: "external-link", label: t.contextMenu.openInDefaultApp, onClick: () => app.openWithDefaultApp(file.path) },
+            { icon: "folder-open", label: t.contextMenu.showInSystemExplorer, onClick: () => app.showInFolder(file.path) },
         );
     }
 
     items.push({
         icon: "copy",
-        label: "Copy image",
+        label: t.contextMenu.copyImage,
         onClick: async () => {
             try {
                 await copyImageToClipboard(plugin, file);
             } catch (e: unknown) {
-                new Notice("Copy image failed");
+                new Notice(t.contextMenu.copyImageFailed);
                 console.error(e);
             }
         },
@@ -98,13 +99,13 @@ function buildMenuItems(
     items.push(
         {
             icon: "circle-minus",
-            label: "Remove from group",
+            label: t.contextMenu.removeFromGroup,
             separatorBefore: true,
             onClick: () => excludeImageBelowGroup(wrapper, container, plugin, ctx, el, option),
         },
         {
             icon: "trash-2",
-            label: "Delete image",
+            label: t.contextMenu.deleteImage,
             danger: true,
             onClick: () => confirmAndDeleteImage(wrapper, file, container, plugin, ctx, el, option),
         },

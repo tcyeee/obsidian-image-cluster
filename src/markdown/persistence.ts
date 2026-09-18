@@ -1,5 +1,6 @@
 import ImgRowPlugin from "main";
 import { MarkdownPostProcessorContext, Notice, TFile } from "obsidian";
+import { t } from "../i18n";
 import { EditorView } from "@codemirror/view";
 import { SettingOptions } from "../core/domain";
 import { GroupDragPayload } from "../drag-state";
@@ -167,7 +168,7 @@ export async function persistOptionsToSource(option: SettingOptions, plugin: Img
     await enqueueFileOp(ctx.sourcePath, async () => {
         const block = await loadBlockContext(plugin, ctx, el);
         if (!block) {
-            notifyPersistFailure("Could not save image group settings — please try again");
+            notifyPersistFailure(t.persistence.saveSettingsFailed);
             return;
         }
         const { file, content, lines, fenceStart, fenceEnd } = block;
@@ -209,7 +210,7 @@ export async function persistReorderToSource(
     await enqueueFileOp(ctx.sourcePath, async () => {
         const block = await loadBlockContext(plugin, ctx, el);
         if (!block) {
-            notifyPersistFailure("Could not save the new image order — please try again");
+            notifyPersistFailure(t.persistence.saveOrderFailed);
             return;
         }
         const { file, content, lines, fenceStart, fenceEnd } = block;
@@ -249,7 +250,7 @@ export async function persistRemoveImageFromSource(
     await enqueueFileOp(ctx.sourcePath, async () => {
         const block = await loadBlockContext(plugin, ctx, el);
         if (!block) {
-            notifyPersistFailure("Could not remove the image — please try again");
+            notifyPersistFailure(t.persistence.removeImageFailed);
             return;
         }
         const { file, content, lines, fenceStart, fenceEnd } = block;
@@ -286,7 +287,7 @@ export async function persistExcludeImageToSource(
     await enqueueFileOp(ctx.sourcePath, async () => {
         const block = await loadBlockContext(plugin, ctx, el);
         if (!block) {
-            notifyPersistFailure("Could not remove the image from the group — please try again");
+            notifyPersistFailure(t.persistence.removeFromGroupFailed);
             return;
         }
         const { file, content, lines, fenceStart, fenceEnd } = block;
@@ -338,12 +339,12 @@ export async function persistDragInsertToSource(
     return enqueueFileOp(ctx.sourcePath, async () => {
         const block = await loadBlockContext(plugin, ctx, el);
         if (!block) {
-            notifyPersistFailure("Could not move the image into the group — please try again");
+            notifyPersistFailure(t.persistence.moveIntoGroupFailed);
             return false;
         }
         const { file, content, lines, fenceStart, fenceEnd } = block;
         if (sourceLineIndex < 0 || sourceLineIndex >= lines.length) {
-            notifyPersistFailure("Could not move the image into the group — please try again");
+            notifyPersistFailure(t.persistence.moveIntoGroupFailed);
             return false;
         }
 
@@ -411,7 +412,7 @@ export async function persistDragOutToSource(
             : findImgsBlockBySnapshot(lines, groupDrag.imageLinesSnapshot);
 
         if (!located) {
-            notifyPersistFailure("Could not move the image out — the original group could not be found, please try again");
+            notifyPersistFailure(t.persistence.moveOutFailed);
             return;
         }
         const { fenceStart, fenceEnd } = located; // fenceStart: ```imgs 这一行；fenceEnd: ``` 这一行

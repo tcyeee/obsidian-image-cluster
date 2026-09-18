@@ -3,6 +3,7 @@ import { Notice, TFile, TFolder, normalizePath } from "obsidian";
 import { IMAGE_EXTENSIONS, config, runtimeDefaults } from "../core/config";
 import { detectContentRect } from "./content-rect";
 import { md5 } from "./md5";
+import { t } from "../i18n";
 
 // 记录每个正在生成中的缩略图路径 -> 等待这次生成结果的所有 <img> 元素。
 // 避免并发情况下对同一文件重复 createBinary 导致 "File already exists."，
@@ -310,14 +311,14 @@ export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise
 export function registerPruneOrphanedThumbnailsCommand(plugin: ImgRowPlugin): void {
   plugin.addCommand({
     id: "prune-orphaned-thumbnail-cache",
-    name: "Clean up orphaned thumbnail cache",
+    name: t.thumbnail.pruneCommandName,
     callback: () => {
       void (async () => {
         const removed = await pruneOrphanedThumbnailCache(plugin);
         new Notice(
           removed > 0
-            ? `Removed ${removed} orphaned thumbnail${removed > 1 ? "s" : ""}.`
-            : "No orphaned thumbnails found.",
+            ? t.thumbnail.pruneRemoved(removed)
+            : t.thumbnail.pruneNone,
         );
       })();
     },

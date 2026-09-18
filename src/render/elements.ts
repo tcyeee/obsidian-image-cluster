@@ -1,6 +1,7 @@
 import { setIcon } from "obsidian";
 import { SettingOptions, SettingPanelDom } from "../core/domain";
 import { setCssProps } from "../core/dom";
+import { t } from "../i18n";
 
 /**
  * 创建图片容器元素，设置基础类名和间距变量。
@@ -16,7 +17,7 @@ export function createImageContainerElement(option: SettingOptions): HTMLDivElem
  */
 export function createSettingButtonElement(): HTMLDivElement {
     const settingBtn = createDiv({ cls: "plugin-image-setting-btn-container clickable-icon" });
-    settingBtn.setAttribute("aria-label", "Image group settings");
+    settingBtn.setAttribute("aria-label", t.settingPanel.groupSettingsAriaLabel);
 
     setIcon(settingBtn, "sliders-horizontal");
 
@@ -35,8 +36,8 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
     const layoutSlider = createDiv({ cls: "plugin-image-setting-layout-slider" });
     layoutGroup.appendChild(layoutSlider);
 
-    layoutGroup.appendChild(createLayoutRadio("grid", "Grid", layoutGroupName));
-    layoutGroup.appendChild(createLayoutRadio("masonry", "Masonry", layoutGroupName));
+    layoutGroup.appendChild(createLayoutRadio("grid", t.settingPanel.grid, layoutGroupName));
+    layoutGroup.appendChild(createLayoutRadio("masonry", t.settingPanel.masonry, layoutGroupName));
 
     // 尺寸选项分组（滑块样式的按钮组）
     const sizeGroup = createDiv({ cls: "plugin-image-setting-size-group" });
@@ -53,23 +54,23 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
     const panel = createDiv({ cls: "plugin-image-setting-panel" });
 
     const layoutSection = createDiv({ cls: "plugin-image-setting-section" });
-    layoutSection.appendChild(createSectionTitle("Layout"));
+    layoutSection.appendChild(createSectionTitle(t.settingPanel.layout));
     layoutSection.appendChild(layoutGroup);
     panel.appendChild(layoutSection);
 
     const sizeSection = createDiv({ cls: "plugin-image-setting-section" });
-    sizeSection.appendChild(createSectionTitle("Canvas size"));
+    sizeSection.appendChild(createSectionTitle(t.settingPanel.canvasSize));
     sizeSection.appendChild(sizeGroup);
     panel.appendChild(sizeSection);
 
     const appearanceSection = createDiv({ cls: "plugin-image-setting-section" });
-    appearanceSection.appendChild(createSectionTitle("Appearance"));
+    appearanceSection.appendChild(createSectionTitle(t.settingPanel.appearance));
     const checkboxList = createDiv({ cls: "plugin-image-setting-checkbox-list" });
-    checkboxList.appendChild(createSettingCheckbox("border", "border"));
-    checkboxList.appendChild(createSettingCheckbox("shadow", "shadow"));
-    checkboxList.appendChild(createSettingCheckbox("hidden", "hidden"));
-    checkboxList.appendChild(createSettingCheckbox("limit", "limit"));
-    checkboxList.appendChild(createSettingCheckbox("padding-left", "padding-left"));
+    checkboxList.appendChild(createSettingCheckbox("border", t.settingPanel.border));
+    checkboxList.appendChild(createSettingCheckbox("shadow", t.settingPanel.shadow));
+    checkboxList.appendChild(createSettingCheckbox("hidden", t.settingPanel.hidden));
+    checkboxList.appendChild(createSettingCheckbox("limit", t.settingPanel.limit));
+    checkboxList.appendChild(createSettingCheckbox("padding-left", t.settingPanel.paddingLeft));
     appearanceSection.appendChild(checkboxList);
     panel.appendChild(appearanceSection);
 
@@ -78,7 +79,7 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
     const pluginSettingsBtn = createDiv({ cls: "plugin-image-setting-footer-btn" });
     const pluginSettingsIcon = createSpan({ cls: "plugin-image-setting-footer-btn-icon" });
     setIcon(pluginSettingsIcon, "settings");
-    const pluginSettingsLabel = createSpan({ cls: "plugin-image-setting-footer-btn-label", text: "Plugin settings" });
+    const pluginSettingsLabel = createSpan({ cls: "plugin-image-setting-footer-btn-label", text: t.settingPanel.pluginSettings });
     pluginSettingsBtn.appendChild(pluginSettingsIcon);
     pluginSettingsBtn.appendChild(pluginSettingsLabel);
     footer.appendChild(pluginSettingsBtn);

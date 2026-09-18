@@ -1,4 +1,5 @@
 import { App, Modal, Setting } from "obsidian";
+import { t } from "../i18n";
 
 /**
  * 删除图片前的确认弹窗。
@@ -19,22 +20,22 @@ export class ConfirmDeleteImageModal extends Modal {
         const { contentEl } = this;
         // 标题走 Modal 自带的 titleEl（setTitle），不要在 contentEl 里手搓 <h3>——
         // 后者既拿不到 Obsidian 的标题样式，也会被提交审核判为直接构造标题元素。
-        this.setTitle("Delete image");
+        this.setTitle(t.confirmDelete.title);
         contentEl.createEl("p", {
-            text: `This image is referenced in ${this.otherRefCount} other place${this.otherRefCount > 1 ? "s" : ""} in your vault. Deleting the original file will break those references.`,
+            text: t.confirmDelete.body(this.otherRefCount),
         });
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText("Cancel")
+                .setButtonText(t.confirmDelete.cancel)
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText("Remove from group only")
+                .setButtonText(t.confirmDelete.removeFromGroupOnly)
                 .onClick(() => {
                     this.close();
                     this.onChoice(false);
                 }))
             .addButton(btn => btn
-                .setButtonText("Delete original anyway")
+                .setButtonText(t.confirmDelete.deleteAnyway)
                 .setDestructive()
                 .onClick(() => {
                     this.close();

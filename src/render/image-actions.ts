@@ -6,6 +6,7 @@ import { persistExcludeImageToSource, persistRemoveImageFromSource } from "../ma
 import { ConfirmDeleteImageModal } from "./confirm-delete-modal";
 import { collectWrapperImageLines } from "./elements";
 import { applyMasonryLayout } from "./layout";
+import { t } from "../i18n";
 
 const THUMBNAIL_MODES: readonly ThumbnailMode[] = ["grid", "masonry"];
 
@@ -136,7 +137,7 @@ export function attachImageWrapperActions(
     const actions = createDiv({ cls: "plugin-image-item-actions" });
 
     const excludeBtn = createDiv({ cls: "embed-action plugin-image-item-action-btn" });
-    excludeBtn.setAttribute("aria-label", "Remove from group");
+    excludeBtn.setAttribute("aria-label", t.imageActions.removeFromGroupAriaLabel);
     setIcon(excludeBtn, "circle-minus");
     excludeBtn.addEventListener("mousedown", e => e.stopPropagation());
     excludeBtn.addEventListener("click", e => {
@@ -146,7 +147,7 @@ export function attachImageWrapperActions(
     });
 
     const deleteBtn = createDiv({ cls: "embed-action plugin-image-item-action-btn plugin-image-item-action-btn--danger" });
-    deleteBtn.setAttribute("aria-label", "Delete image");
+    deleteBtn.setAttribute("aria-label", t.imageActions.deleteImageAriaLabel);
     setIcon(deleteBtn, "trash-2");
     deleteBtn.addEventListener("mousedown", e => e.stopPropagation());
     deleteBtn.addEventListener("click", e => {
@@ -179,7 +180,7 @@ export function attachImageErrorActions(
     const actions = createDiv({ cls: "plugin-image-item-actions" });
 
     const deleteBtn = createDiv({ cls: "embed-action plugin-image-item-action-btn plugin-image-item-action-btn--danger" });
-    deleteBtn.setAttribute("aria-label", "Remove broken link");
+    deleteBtn.setAttribute("aria-label", t.imageActions.removeBrokenLinkAriaLabel);
     setIcon(deleteBtn, "trash-2");
     deleteBtn.addEventListener("mousedown", e => e.stopPropagation());
     deleteBtn.addEventListener("click", e => {
