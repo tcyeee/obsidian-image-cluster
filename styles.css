@@ -634,13 +634,13 @@
 /* ── 图片组内单张图片的操作按钮（排除 / 删除，悬停缩略图时出现） ──
    缩略图不是官方的 .image-embed，拿不到官方 `.embed-actions` 的定位与淡入规则
    （那条规则限定在 .markdown-source-view.mod-cm6 .embed-actions），
-   所以这里照搬一份：右上角、横向排列、悬停淡入，内边距与图片 embed 上的按钮栏一致。
+   所以这里照搬一份：左上角、横向排列、悬停淡入，内边距与图片 embed 上的按钮栏一致。
    按钮本身直接挂官方的 .embed-action 类（见 image-actions.ts），
    尺寸 / 圆角 / hover 高亮 / 移动端触控尺寸都不需要插件再写。 */
 .plugin-image-item-actions {
     position: absolute;
     top: var(--size-4-2);
-    inset-inline-end: var(--size-4-2);
+    inset-inline-start: var(--size-4-2);
     display: flex;
     gap: var(--size-2-1);
     opacity: 0;
@@ -657,6 +657,36 @@
 /* 官方按钮没有危险色；删除是不可逆操作，保留一个红色 hover 作为提示 */
 .plugin-image-item-action-btn--danger:hover {
     color: var(--text-error, #e93147);
+}
+
+/* setting 面板底部：跳转到插件设置页，与上方分组用分割线隔开 */
+.plugin-image-setting-footer {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 14px;
+  margin-top: -6px;
+}
+.plugin-image-setting-footer-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  user-select: none;
+}
+.plugin-image-setting-footer-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+.plugin-image-setting-footer-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .icon--error-picture {

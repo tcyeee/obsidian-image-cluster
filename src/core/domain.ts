@@ -41,4 +41,5 @@ export interface SettingPanelDom {
     paddingLeftCheckbox: HTMLInputElement | null;
     sizeRadios: HTMLInputElement[];
     layoutRadios: HTMLInputElement[];
+    pluginSettingsBtn: HTMLDivElement;
 }

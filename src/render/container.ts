@@ -7,6 +7,15 @@ import { persistOptionsToSource } from "../markdown/persistence";
 import { createImageContainerElement, createSettingButtonElement, createSettingPanelDom } from "./elements";
 import { applySettingsToContainer, containerLimitCheckboxMap } from "./layout";
 
+// app.setting 是 Obsidian 运行时对象，未出现在官方类型声明（obsidian.d.ts）里——
+// 打开设置页并跳转到指定 Tab（如本插件的设置页）就是通过它实现的。
+interface AppSettingActions {
+    setting: {
+        open(): void;
+        openTabById(id: string): void;
+    };
+}
+
 // el -> 该 el 上一次 createContainer 调用遗留下来的清理函数。
 // 设置面板挂在 activeDocument.body 上，脱离 el 的子树，processor.ts 的 el.empty() 清不到它；
 // 它原本只靠"下一次点击页面任意位置"时的 isConnected 检测惰性回收。如果同一个 el 被
@@ -181,7 +190,7 @@ function setupSettingPanel(
     sizeGroupName: string,
     layoutGroupName: string,
 ): { panel: HTMLDivElement; persistIfNeeded: () => void; limitCheckbox: HTMLInputElement | null } {
-    const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios }: SettingPanelDom = createSettingPanelDom(sizeGroupName, layoutGroupName);
+    const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios, pluginSettingsBtn }: SettingPanelDom = createSettingPanelDom(sizeGroupName, layoutGroupName);
 
     // 注意：panel 的 DOM 挂载由调用方（createContainer）负责
 
@@ -293,6 +302,16 @@ function setupSettingPanel(
             applySettingsToContainer(container, option);
             hasPendingChanges = true;
         });
+    });
+
+    // 面板底部「跳转到插件设置」：写回任何待持久化的更改后，打开设置窗口并定位到本插件的 Tab
+    pluginSettingsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        persistIfNeeded();
+        panel.classList.remove("plugin-image-setting-panel--open");
+        const app = plugin.app as unknown as typeof plugin.app & AppSettingActions;
+        app.setting.open();
+        app.setting.openTabById(plugin.manifest.id);
     });
 
     return { panel, persistIfNeeded, limitCheckbox };
