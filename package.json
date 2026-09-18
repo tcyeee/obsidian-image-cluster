@@ -4,11 +4,11 @@
 	"description": "Combine multiple images together in your notes for a more beautiful and organized layout.",
 	"main": "main.js",
 	"scripts": {
-		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"dev": "node deploy/esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node deploy/esbuild.config.mjs production",
 		"lint": "eslint . --ext .ts",
 		"test": "vitest run",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
+		"version": "node deploy/version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],
 	"author": "tcyeee",
