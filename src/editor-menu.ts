@@ -1,5 +1,6 @@
 import ImgRowPlugin from "main";
 import { buildGroupBlockForLine, hasMarkdownImage } from "./markdown/image-syntax";
+import { t } from "./i18n";
 
 /**
  * 在编辑器（源模式 / 实时预览）的右键菜单中追加一项：
@@ -21,7 +22,7 @@ export function registerEditorMenu(that: ImgRowPlugin) {
             menu.addItem((item) => {
                 item
                     .setIcon("lucide-layout-grid")
-                    .setTitle("Group images")
+                    .setTitle(t.common.groupImages)
                     .onClick(() => {
                         const lineNo = cursor.line;
                         const prevLine = lineNo > 0 ? (editor.getLine(lineNo - 1) ?? "") : "";

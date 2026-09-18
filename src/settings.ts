@@ -1,6 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting, SettingDefinitionItem, TextComponent, ButtonComponent } from "obsidian";
 import ImgRowPlugin from "main";
 import { config, runtimeDefaults, isDotPrefixedCachePath, normalizeCacheFolderPath } from "./core/config";
+import { t } from "./i18n";
 
 export interface ImgRowPluginSettings {
     defaultSize: "small" | "medium" | "large";
@@ -70,14 +71,14 @@ export class ImgRowSettingTab extends PluginSettingTab {
     getSettingDefinitions(): SettingDefinitionItem[] {
         return [
             {
-                name: "Default image size",
-                desc: "Size applied to new image groups that have no explicit size setting.",
+                name: t.settings.defaultSize.name,
+                desc: t.settings.defaultSize.desc,
                 render: (setting: Setting) => {
                     setting.addDropdown(drop =>
                         drop
-                            .addOption("small",  "Small (90px)")
-                            .addOption("medium", "Medium (150px)")
-                            .addOption("large",  "Large (220px)")
+                            .addOption("small",  t.settings.defaultSize.small)
+                            .addOption("medium", t.settings.defaultSize.medium)
+                            .addOption("large",  t.settings.defaultSize.large)
                             .setValue(this.plugin.settings.defaultSize)
                             .onChange(async value => {
                                 this.plugin.settings.defaultSize = value as ImgRowPluginSettings["defaultSize"];
@@ -88,8 +89,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: "Default border",
-                desc: "Show a border around each image by default.",
+                name: t.settings.defaultBorder.name,
+                desc: t.settings.defaultBorder.desc,
                 render: (setting: Setting) => {
                     setting.addToggle(toggle =>
                         toggle
@@ -103,8 +104,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: "Default shadow",
-                desc: "Show a drop shadow under each image by default.",
+                name: t.settings.defaultShadow.name,
+                desc: t.settings.defaultShadow.desc,
                 render: (setting: Setting) => {
                     setting.addToggle(toggle =>
                         toggle
@@ -118,8 +119,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: "Hover-to-group button",
-                desc: "Show a button on hover over a standalone image (live preview) to convert it into an image group.",
+                name: t.settings.hoverGroupButton.name,
+                desc: t.settings.hoverGroupButton.desc,
                 render: (setting: Setting) => {
                     setting.addToggle(toggle =>
                         toggle
@@ -132,8 +133,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: "Drag images in/out of groups",
-                desc: "Allow dragging a standalone image (live preview) into an existing image group, and dragging an image out of a group back into the editor.",
+                name: t.settings.dragToGroup.name,
+                desc: t.settings.dragToGroup.desc,
                 render: (setting: Setting) => {
                     setting.addToggle(toggle =>
                         toggle
@@ -146,8 +147,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: "Cache folder path",
-                desc: "Vault-relative folder where generated thumbnail cache files are stored. Leave blank to reset to the default (\"assets/cache/\"). Must not contain a dot-prefixed segment (e.g. \".cache\"), since Obsidian doesn't index those folders. Changing this does not move existing cache files — they stay in the old folder (safe to delete manually) and are regenerated at the new location on next use. Edits only take effect once you click the checkmark to confirm.",
+                name: t.settings.cachePath.name,
+                desc: t.settings.cachePath.desc,
                 render: (setting: Setting) => {
                     let textComponent: TextComponent;
                     let confirmButton: ButtonComponent;
@@ -172,12 +173,12 @@ export class ImgRowSettingTab extends PluginSettingTab {
                         confirmButton = button;
                         button
                             .setIcon("check")
-                            .setTooltip("Apply")
+                            .setTooltip(t.settings.cachePath.apply)
                             .setCta()
                             .onClick(async () => {
                                 const rawValue = textComponent.getValue();
                                 if (isDotPrefixedCachePath(normalizeCacheFolderPath(rawValue))) {
-                                    new Notice('Cache folder path cannot contain a dot-prefixed segment (e.g. ".cache") — change was not applied.');
+                                    new Notice(t.settings.cachePath.invalidPath);
                                     return;
                                 }
                                 this.plugin.settings.cachePath = rawValue;
@@ -191,7 +192,7 @@ export class ImgRowSettingTab extends PluginSettingTab {
                         cancelButton = button;
                         button
                             .setIcon("x")
-                            .setTooltip("Discard")
+                            .setTooltip(t.settings.cachePath.discard)
                             .onClick(() => {
                                 textComponent.setValue(this.plugin.settings.cachePath);
                                 refreshButtonsVisibility();
@@ -202,8 +203,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: "Trim solid-color borders in thumbnails",
-                desc: "When generating a thumbnail, try to detect and remove a solid-color border (such as black canvas padding in a design mockup) before cropping to a square, so it doesn't get baked into the thumbnail. Only affects newly generated thumbnails, not ones already cached.",
+                name: t.settings.thumbnailBorderTrim.name,
+                desc: t.settings.thumbnailBorderTrim.desc,
                 render: (setting: Setting) => {
                     setting.addToggle(toggle =>
                         toggle
