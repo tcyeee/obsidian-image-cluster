@@ -1,10 +1,12 @@
-import { en } from "./en";
+import { en, Translations } from "./en";
 import { zh } from "./zh";
+
+export type LanguagePreference = "auto" | "en" | "zh";
 
 /**
  * Obsidian 没有面向插件的官方 i18n API：桌面/移动端客户端都会把用户选择的显示语言
  * 写入 localStorage 的 "language" 键（如 "en"、"zh"、"zh-TW"），社区插件普遍依赖这个
- * 事实行为做语言检测。语言只在应用重启时生效，因此这里只在模块加载时判断一次即可。
+ * 事实行为做语言检测。仅在 language 设置为 "auto"（跟随 Obsidian）时使用。
  */
 function detectLocale(): "en" | "zh" {
     try {
@@ -17,4 +19,15 @@ function detectLocale(): "en" | "zh" {
     return nav?.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
-export const t = detectLocale() === "zh" ? zh : en;
+/**
+ * `t` 是所有模块共享的同一个对象引用。切换语言时原地替换它的字段（而不是重新赋值
+ * `t` 本身），这样已经 `import { t }` 的模块无需重新加载就能读到新语言的文案。
+ */
+export const t: Translations = { ...en };
+
+export function setLocale(preference: LanguagePreference): void {
+    const locale = preference === "auto" ? detectLocale() : preference;
+    Object.assign(t, locale === "zh" ? zh : en);
+}
+
+setLocale("auto");

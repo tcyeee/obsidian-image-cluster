@@ -1,9 +1,10 @@
 import { App, Notice, PluginSettingTab, Setting, SettingDefinitionItem, TextComponent, ButtonComponent } from "obsidian";
 import ImgRowPlugin from "main";
 import { config, runtimeDefaults, isDotPrefixedCachePath, normalizeCacheFolderPath } from "./core/config";
-import { t } from "./i18n";
+import { t, setLocale, LanguagePreference } from "./i18n";
 
 export interface ImgRowPluginSettings {
+    language: LanguagePreference;
     defaultSize: "small" | "medium" | "large";
     defaultBorder: boolean;
     defaultShadow: boolean;
@@ -14,6 +15,7 @@ export interface ImgRowPluginSettings {
 }
 
 export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
+    language: "auto",
     defaultSize: "medium",
     defaultBorder: false,
     defaultShadow: false,
@@ -71,150 +73,149 @@ export class ImgRowSettingTab extends PluginSettingTab {
     getSettingDefinitions(): SettingDefinitionItem[] {
         return [
             {
-                name: t.settings.defaultSize.name,
-                desc: t.settings.defaultSize.desc,
-                render: (setting: Setting) => {
-                    setting.addDropdown(drop =>
-                        drop
-                            .addOption("small",  t.settings.defaultSize.small)
-                            .addOption("medium", t.settings.defaultSize.medium)
-                            .addOption("large",  t.settings.defaultSize.large)
-                            .setValue(this.plugin.settings.defaultSize)
-                            .onChange(async value => {
-                                this.plugin.settings.defaultSize = value as ImgRowPluginSettings["defaultSize"];
-                                applySettingsToConfig(this.plugin.settings);
-                                await this.plugin.saveSettings();
-                            })
-                    );
-                },
+                type: "group",
+                heading: t.settings.groupGeneral,
+                items: [
+                    {
+                        name: t.settings.language.name,
+                        desc: t.settings.language.desc,
+                        render: (setting: Setting) => {
+                            setting.addDropdown(drop =>
+                                drop
+                                    .addOption("auto", t.settings.language.auto)
+                                    .addOption("en", t.settings.language.en)
+                                    .addOption("zh", t.settings.language.zh)
+                                    .setValue(this.plugin.settings.language)
+                                    .onChange(async value => {
+                                        this.plugin.settings.language = value as ImgRowPluginSettings["language"];
+                                        setLocale(this.plugin.settings.language);
+                                        await this.plugin.saveSettings();
+                                        // 重新渲染设置页，让设置项本身立即以新语言显示；其余 UI（菜单、面板等）
+                                        // 因为共享同一个 t 对象，下次渲染时会自动读到新文案。display() 在声明式
+                                        // 设置页（getSettingDefinitions 非空）下已被废弃、不会被调用，需用 update()。
+                                        this.update();
+                                    })
+                            );
+                        },
+                    },
+                ],
             },
             {
-                name: t.settings.defaultBorder.name,
-                desc: t.settings.defaultBorder.desc,
-                render: (setting: Setting) => {
-                    setting.addToggle(toggle =>
-                        toggle
-                            .setValue(this.plugin.settings.defaultBorder)
-                            .onChange(async value => {
-                                this.plugin.settings.defaultBorder = value;
-                                applySettingsToConfig(this.plugin.settings);
-                                await this.plugin.saveSettings();
-                            })
-                    );
-                },
+                type: "group",
+                heading: t.settings.groupDefaultStyle,
+                items: [
+                    {
+                        name: t.settings.defaultSize.name,
+                        desc: t.settings.defaultSize.desc,
+                        render: (setting: Setting) => {
+                            setting.addDropdown(drop =>
+                                drop
+                                    .addOption("small",  t.settings.defaultSize.small)
+                                    .addOption("medium", t.settings.defaultSize.medium)
+                                    .addOption("large",  t.settings.defaultSize.large)
+                                    .setValue(this.plugin.settings.defaultSize)
+                                    .onChange(async value => {
+                                        this.plugin.settings.defaultSize = value as ImgRowPluginSettings["defaultSize"];
+                                        applySettingsToConfig(this.plugin.settings);
+                                        await this.plugin.saveSettings();
+                                    })
+                            );
+                        },
+                    },
+                    {
+                        name: t.settings.defaultBorder.name,
+                        desc: t.settings.defaultBorder.desc,
+                        render: (setting: Setting) => {
+                            setting.addToggle(toggle =>
+                                toggle
+                                    .setValue(this.plugin.settings.defaultBorder)
+                                    .onChange(async value => {
+                                        this.plugin.settings.defaultBorder = value;
+                                        applySettingsToConfig(this.plugin.settings);
+                                        await this.plugin.saveSettings();
+                                    })
+                            );
+                        },
+                    },
+                    {
+                        name: t.settings.defaultShadow.name,
+                        desc: t.settings.defaultShadow.desc,
+                        render: (setting: Setting) => {
+                            setting.addToggle(toggle =>
+                                toggle
+                                    .setValue(this.plugin.settings.defaultShadow)
+                                    .onChange(async value => {
+                                        this.plugin.settings.defaultShadow = value;
+                                        applySettingsToConfig(this.plugin.settings);
+                                        await this.plugin.saveSettings();
+                                    })
+                            );
+                        },
+                    },
+                ],
             },
             {
-                name: t.settings.defaultShadow.name,
-                desc: t.settings.defaultShadow.desc,
-                render: (setting: Setting) => {
-                    setting.addToggle(toggle =>
-                        toggle
-                            .setValue(this.plugin.settings.defaultShadow)
-                            .onChange(async value => {
-                                this.plugin.settings.defaultShadow = value;
-                                applySettingsToConfig(this.plugin.settings);
-                                await this.plugin.saveSettings();
-                            })
-                    );
-                },
-            },
-            {
-                name: t.settings.hoverGroupButton.name,
-                desc: t.settings.hoverGroupButton.desc,
-                render: (setting: Setting) => {
-                    setting.addToggle(toggle =>
-                        toggle
-                            .setValue(this.plugin.settings.enableHoverGroupButton)
-                            .onChange(async value => {
-                                this.plugin.settings.enableHoverGroupButton = value;
-                                await this.plugin.saveSettings();
-                            })
-                    );
-                },
-            },
-            {
-                name: t.settings.dragToGroup.name,
-                desc: t.settings.dragToGroup.desc,
-                render: (setting: Setting) => {
-                    setting.addToggle(toggle =>
-                        toggle
-                            .setValue(this.plugin.settings.enableDragToGroup)
-                            .onChange(async value => {
-                                this.plugin.settings.enableDragToGroup = value;
-                                await this.plugin.saveSettings();
-                            })
-                    );
-                },
-            },
-            {
-                name: t.settings.cachePath.name,
-                desc: t.settings.cachePath.desc,
-                render: (setting: Setting) => {
-                    let textComponent: TextComponent;
-                    let confirmButton: ButtonComponent;
-                    let cancelButton: ButtonComponent;
+                type: "page",
+                name: t.settings.groupAdvanced.name,
+                desc: t.settings.groupAdvanced.desc,
+                items: [
+                    {
+                        name: t.settings.cachePath.name,
+                        desc: t.settings.cachePath.desc,
+                        render: (setting: Setting) => {
+                            let textComponent: TextComponent;
+                            let confirmButton: ButtonComponent;
+                            let cancelButton: ButtonComponent;
 
-                    // 确认/取消按钮只在输入框内容与已保存值不一致时出现，平时收起，避免占用设置面板空间。
-                    const refreshButtonsVisibility = () => {
-                        const hasPendingChange = textComponent.getValue() !== this.plugin.settings.cachePath;
-                        confirmButton.buttonEl.toggle(hasPendingChange);
-                        cancelButton.buttonEl.toggle(hasPendingChange);
-                    };
+                            // 确认/取消按钮只在输入框内容与已保存值不一致时出现，平时收起，避免占用设置面板空间。
+                            const refreshButtonsVisibility = () => {
+                                const hasPendingChange = textComponent.getValue() !== this.plugin.settings.cachePath;
+                                confirmButton.buttonEl.toggle(hasPendingChange);
+                                cancelButton.buttonEl.toggle(hasPendingChange);
+                            };
 
-                    setting.addText(text => {
-                        textComponent = text;
-                        text
-                            .setPlaceholder(config.DEFAULT_THUMBNAIL_PATH)
-                            .setValue(this.plugin.settings.cachePath)
-                            .onChange(() => refreshButtonsVisibility());
-                    });
-
-                    setting.addButton(button => {
-                        confirmButton = button;
-                        button
-                            .setIcon("check")
-                            .setTooltip(t.settings.cachePath.apply)
-                            .setCta()
-                            .onClick(async () => {
-                                const rawValue = textComponent.getValue();
-                                if (isDotPrefixedCachePath(normalizeCacheFolderPath(rawValue))) {
-                                    new Notice(t.settings.cachePath.invalidPath);
-                                    return;
-                                }
-                                this.plugin.settings.cachePath = rawValue;
-                                applySettingsToConfig(this.plugin.settings);
-                                await this.plugin.saveSettings();
-                                refreshButtonsVisibility();
+                            setting.addText(text => {
+                                textComponent = text;
+                                text
+                                    .setPlaceholder(config.DEFAULT_THUMBNAIL_PATH)
+                                    .setValue(this.plugin.settings.cachePath)
+                                    .onChange(() => refreshButtonsVisibility());
                             });
-                    });
 
-                    setting.addButton(button => {
-                        cancelButton = button;
-                        button
-                            .setIcon("x")
-                            .setTooltip(t.settings.cachePath.discard)
-                            .onClick(() => {
-                                textComponent.setValue(this.plugin.settings.cachePath);
-                                refreshButtonsVisibility();
+                            setting.addButton(button => {
+                                confirmButton = button;
+                                button
+                                    .setIcon("check")
+                                    .setTooltip(t.settings.cachePath.apply)
+                                    .setCta()
+                                    .onClick(async () => {
+                                        const rawValue = textComponent.getValue();
+                                        if (isDotPrefixedCachePath(normalizeCacheFolderPath(rawValue))) {
+                                            new Notice(t.settings.cachePath.invalidPath);
+                                            return;
+                                        }
+                                        this.plugin.settings.cachePath = rawValue;
+                                        applySettingsToConfig(this.plugin.settings);
+                                        await this.plugin.saveSettings();
+                                        refreshButtonsVisibility();
+                                    });
                             });
-                    });
 
-                    refreshButtonsVisibility();
-                },
-            },
-            {
-                name: t.settings.thumbnailBorderTrim.name,
-                desc: t.settings.thumbnailBorderTrim.desc,
-                render: (setting: Setting) => {
-                    setting.addToggle(toggle =>
-                        toggle
-                            .setValue(this.plugin.settings.enableThumbnailBorderTrim)
-                            .onChange(async value => {
-                                this.plugin.settings.enableThumbnailBorderTrim = value;
-                                await this.plugin.saveSettings();
-                            })
-                    );
-                },
+                            setting.addButton(button => {
+                                cancelButton = button;
+                                button
+                                    .setIcon("x")
+                                    .setTooltip(t.settings.cachePath.discard)
+                                    .onClick(() => {
+                                        textComponent.setValue(this.plugin.settings.cachePath);
+                                        refreshButtonsVisibility();
+                                    });
+                            });
+
+                            refreshButtonsVisibility();
+                        },
+                    },
+                ],
             },
         ];
     }
