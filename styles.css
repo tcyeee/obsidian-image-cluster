@@ -242,6 +242,49 @@
   display: flex;
 }
 
+/* 图片右键菜单：设计语言与上面的 setting 面板保持一致（圆角浮层 + 阴影 + 主背景色），
+   position: fixed，left/top 由 JS 按点击坐标动态注入 CSS 变量 */
+.plugin-image-context-menu {
+  position: fixed;
+  left: var(--plugin-context-menu-left, 0);
+  top: var(--plugin-context-menu-top, 0);
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--background-primary);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.13);
+  padding: 6px;
+  z-index: 120;
+  font-size: 14px;
+  color: var(--text-normal);
+}
+.plugin-image-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.plugin-image-context-menu-item:hover {
+  background: var(--background-modifier-hover);
+}
+.plugin-image-context-menu-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.plugin-image-context-menu-item-label {
+  white-space: nowrap;
+}
+
 .plugin-image-panel-safe-zone {
   position: absolute;
   top: -12px;

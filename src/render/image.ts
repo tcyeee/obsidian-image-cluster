@@ -1,6 +1,9 @@
+import { TFile } from "obsidian";
+import ImgRowPlugin from "main";
 import { SettingOptions } from "../core/domain";
 import { setCssProps } from "../core/dom";
 import { openImagePreview } from "./preview";
+import { openImageContextMenu } from "./image-context-menu";
 
 /**
  * 创建图片组中的单个图片元素，并应用对应的配置。
@@ -8,11 +11,20 @@ import { openImagePreview } from "./preview";
  *
  * @param option - 配置对象
  * @param src - 图片源
+ * @param plugin - 插件实例，右键菜单里「用默认应用打开」等操作需要
+ * @param file - 该图片对应的原图文件，右键菜单操作的目标
  * @param srcList - 图片列表
  * @param idx - 图片索引
  * @returns 图片元素
  */
-export function createImage(option: SettingOptions, src: string, srcList?: string[], idx?: number): HTMLImageElement {
+export function createImage(
+    option: SettingOptions,
+    src: string,
+    plugin: ImgRowPlugin,
+    file: TFile,
+    srcList?: string[],
+    idx?: number,
+): HTMLImageElement {
     const img = createEl("img");
     img.src = src;
     img.classList.add("plugin-image");
@@ -55,6 +67,12 @@ export function createImage(option: SettingOptions, src: string, srcList?: strin
         e.preventDefault();
         openOverlay();
     }, { passive: false });
+
+    // 右键：拦截原生菜单（此前指向缩略图缓存文件），改用自定义菜单
+    img.addEventListener("contextmenu", e => {
+        e.preventDefault();
+        openImageContextMenu(e.clientX, e.clientY, plugin, file);
+    });
 
     return img;
 }
