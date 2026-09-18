@@ -1,6 +1,6 @@
 import ImgRowPlugin from "main";
 import { Notice, TFile, TFolder, normalizePath } from "obsidian";
-import { IMAGE_EXTENSIONS, config } from "../core/config";
+import { IMAGE_EXTENSIONS, config, runtimeDefaults } from "../core/config";
 import { detectContentRect } from "./content-rect";
 import { md5 } from "./md5";
 
@@ -22,12 +22,12 @@ function getThumbnailTargetSide(): number {
 }
 
 /**
- * 缩略图缓存路径：THUMBNAIL_PATH + md5(file.path + 目标分辨率)。
+ * 缩略图缓存路径：runtimeDefaults.thumbnailPath（用户可在设置里自定义） + md5(file.path + 目标分辨率)。
  * 把分辨率一起写入哈希输入，这样当 devicePixelRatio 变化（例如换到 Retina 屏）导致
  * 目标分辨率变化时，会自动指向一个新的缓存文件而不是复用旧的低清晰度缩略图。
  */
 export function getThumbPath(filePath: string): string {
-  return normalizePath(`${config.THUMBNAIL_PATH}${md5(`${filePath}@${getThumbnailTargetSide()}`)}`);
+  return normalizePath(`${runtimeDefaults.thumbnailPath}${md5(`${filePath}@${getThumbnailTargetSide()}`)}`);
 }
 
 /**
@@ -72,7 +72,7 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
     // 兼容更早版本：分辨率信息加入缓存 key 之前，缓存路径是 md5(file.path)（不带分辨率后缀）。
     // 引入分辨率后缀后，那批旧缓存不会再被任何路径引用，会变成永久孤儿。趁着这次要
     // 重新生成缩略图，顺手把旧缓存清掉，避免 assets/cache/ 无限堆积。
-    const legacyThumbPath = normalizePath(`${config.THUMBNAIL_PATH}${md5(file.path)}`);
+    const legacyThumbPath = normalizePath(`${runtimeDefaults.thumbnailPath}${md5(file.path)}`);
     if (legacyThumbPath !== thumbPath) {
       const legacyThumb = plugin.app.vault.getAbstractFileByPath(legacyThumbPath);
       if (legacyThumb instanceof TFile) {
@@ -187,7 +187,7 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
     plugin.app.vault.on("rename", (file, oldPath) => {
       // 缓存目录自身文件的 rename/delete 不需要（也不应该）触发这里的逻辑，
       // 否则会对一个本就是缓存文件的路径去找"它的缓存"，纯属无意义的空转。
-      if (!(file instanceof TFile) || file.path.startsWith(config.THUMBNAIL_PATH) || oldPath.startsWith(config.THUMBNAIL_PATH)) {
+      if (!(file instanceof TFile) || file.path.startsWith(runtimeDefaults.thumbnailPath) || oldPath.startsWith(runtimeDefaults.thumbnailPath)) {
         return;
       }
       void (async () => {
@@ -209,7 +209,7 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
 
   plugin.registerEvent(
     plugin.app.vault.on("delete", (file) => {
-      if (!(file instanceof TFile) || file.path.startsWith(config.THUMBNAIL_PATH)) return;
+      if (!(file instanceof TFile) || file.path.startsWith(runtimeDefaults.thumbnailPath)) return;
       void (async () => {
         const thumbPath = thumbPathFor(file.path);
         const thumb = plugin.app.vault.getAbstractFileByPath(thumbPath);
@@ -226,7 +226,7 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
 }
 
 /**
- * 手动扫描 THUMBNAIL_PATH 下的全部缓存文件，删除其中不再对应任何当前 vault 内原图的文件。
+ * 手动扫描 runtimeDefaults.thumbnailPath 下的全部缓存文件，删除其中不再对应任何当前 vault 内原图的文件。
  *
  * 背景：registerThumbnailCacheLifecycle 只能覆盖"插件运行期间、经由 Obsidian 的
  * rename/delete 事件触发"的原图变更。如果原图是在插件被禁用期间、或通过 vault 外部工具
@@ -247,13 +247,13 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
  * @returns 实际删除的孤儿缓存文件数
  */
 export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise<number> {
-  const cacheFolder = plugin.app.vault.getAbstractFileByPath(normalizePath(config.THUMBNAIL_PATH));
+  const cacheFolder = plugin.app.vault.getAbstractFileByPath(normalizePath(runtimeDefaults.thumbnailPath));
   if (!(cacheFolder instanceof TFolder)) return 0;
 
   const validThumbPaths = new Set<string>();
   for (const file of plugin.app.vault.getFiles()) {
     if (!IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) continue;
-    if (file.path.startsWith(config.THUMBNAIL_PATH)) continue;
+    if (file.path.startsWith(runtimeDefaults.thumbnailPath)) continue;
     validThumbPaths.add(getThumbPath(file.path));
   }
 

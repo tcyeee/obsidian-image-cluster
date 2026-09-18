@@ -8,9 +8,11 @@ export const config = {
     LIST_INDENT_PX: 28,          // Obsidian ul>li margin-inline-start:3ch ≈ 28px
 
     /* THUMBNAIL */
+    // 缩略图缓存目录的默认值，也是用户在设置里把路径清空/重置时回退到的值。
     // 注意：Obsidian 对以 "." 开头的目录（例如 ".cache"）不会作为 Vault 内容进行索引，
-    // 因此缩略图目录必须使用非点开头的路径，才能通过 vault.getAbstractFileByPath 正常访问。
-    THUMBNAIL_PATH: "assets/cache/",
+    // 因此缩略图目录必须使用非点开头的路径，才能通过 vault.getAbstractFileByPath 正常访问
+    // ——normalizeCacheFolderPath/isDotPrefixedCachePath 就是用来在运行时校验这一点的。
+    DEFAULT_THUMBNAIL_PATH: "assets/cache/",
     THUMBNAIL_QUALITY: 0.8, // 缩略图质量
     THUMBNAIL_SIZE: 220,    // 缩略图基准尺寸（1x），需 >= LARGE_SIZE 才能保证三档展示尺寸都清晰；实际生成分辨率会再乘以 devicePixelRatio（见 thumbnail.ts）
     MAX_VISIBLE_ROWS: 3,    // 最多显示 3 行
@@ -73,4 +75,30 @@ export const runtimeDefaults = {
     radius: config.MEDIUM_RADIUS,
     shadow: false,
     border: false,
+    thumbnailPath: config.DEFAULT_THUMBNAIL_PATH,
 };
+
+/**
+ * 判断一个已归一化的路径里是否存在以 "." 开头的路径段（如 ".cache"、"foo/.bar"）。
+ * Obsidian 不会索引这类目录，一旦用户把缓存目录配置成这种路径，缩略图会被写入磁盘但
+ * vault.getAbstractFileByPath 永远查不到，导致每次都当成"不存在"重新生成，旧文件永久残留。
+ * 因此在写入 runtimeDefaults.thumbnailPath 之前必须挡掉这类输入。
+ */
+export function isDotPrefixedCachePath(normalizedPath: string): boolean {
+    return normalizedPath.split("/").some(segment => segment.startsWith("."));
+}
+
+/**
+ * 把用户在设置里填写的缓存目录路径，归一化成以单个 "/" 结尾的形式。
+ *
+ * 这里只做与平台无关的字符串层面清理（反斜杠转正斜杠、折叠重复斜杠、去掉首尾斜杠）；
+ * 不依赖 obsidian 包的 normalizePath —— config.ts 会被单元测试直接 import（不经过打包），
+ * 而 "obsidian" 在测试环境里是没有真实运行时导出的纯类型声明包，引入会导致测试直接报错。
+ * 完整的、真正落到磁盘路径上的归一化交给 getThumbPath（thumbnail.ts）里那次
+ * obsidian 的 normalizePath 调用去做最终兜底。
+ */
+export function normalizeCacheFolderPath(rawPath: string): string {
+    const source = (rawPath.trim() || config.DEFAULT_THUMBNAIL_PATH).replace(/\\/g, "/");
+    const collapsed = source.replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
+    return `${collapsed || config.DEFAULT_THUMBNAIL_PATH.replace(/\/$/, "")}/`;
+}
