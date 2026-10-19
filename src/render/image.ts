@@ -5,6 +5,52 @@ import { setCssProps } from "../core/dom";
 import { openImagePreview } from "./preview";
 import { openImageContextMenu } from "./image-context-menu";
 
+interface ImageContextMenuData {
+    plugin: ImgRowPlugin;
+    file: TFile;
+    wrapper: HTMLElement;
+    container: HTMLDivElement;
+    ctx: MarkdownPostProcessorContext;
+    el: HTMLElement;
+    option: SettingOptions;
+}
+
+// 每张图片对应的右键菜单上下文，用 window 级捕获监听统一查表触发（见下方说明）。
+const imageContextMenuData = new WeakMap<HTMLImageElement, ImageContextMenuData>();
+// 同一个 window（含弹出窗口各自的 window）只挂一次捕获监听，避免每张图片重复注册。
+const contextMenuCaptureInstalled = new WeakSet<Window>();
+
+/**
+ * Obsidian 近期版本会在 document（或更内层的祖先节点，比如 .markdown-preview-sizer）
+ * 上挂一个更早的 contextmenu 捕获阶段监听，用来弹出它自己的"用默认应用打开 / 在系统访达
+ * 中显示"原生风格菜单——这个监听读的是触发事件的 <img> 自身的 src（此时是缩略图缓存路径）。
+ *
+ * 实测过把拦截点放在 document 捕获阶段：虽然我们自己的菜单能正常弹出了，但 Obsidian 那层
+ * 监听先于我们执行（同一个 document 上，谁先注册谁先跑，它是核心代码，必然比插件先注册），
+ * 导致它的菜单已经同步创建完毕，我们之后再调用 stopPropagation 也无法撤销——于是两个菜单
+ * 同时出现、重叠在一起。
+ *
+ * capture 阶段的顺序是按节点在 DOM 树里的深度决定的，而不是按监听器的注册时间：
+ * window 的捕获阶段必然先于 document（以及更深的任何祖先节点）执行，和谁先注册无关。
+ * 把拦截点继续上移到 window 这一级，就能保证我们先于 Obsidian 那层监听拿到事件，
+ * 从而真正在它的菜单被创建之前 stopPropagation，避免重叠。
+ */
+function handleCaptureContextMenu(e: MouseEvent): void {
+    const target = e.target;
+    if (!(target instanceof HTMLImageElement)) return;
+    const data = imageContextMenuData.get(target);
+    if (!data) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openImageContextMenu(e.clientX, e.clientY, data.plugin, data.file, data.wrapper, data.container, data.ctx, data.el, data.option);
+}
+
+function ensureContextMenuCapture(win: Window): void {
+    if (contextMenuCaptureInstalled.has(win)) return;
+    contextMenuCaptureInstalled.add(win);
+    win.addEventListener("contextmenu", handleCaptureContextMenu, { capture: true });
+}
+
 /**
  * 创建图片组中的单个图片元素，并应用对应的配置。
  * 点击（桌面端）或轻触（移动端）时打开大图预览。
@@ -76,11 +122,12 @@ export function createImage(
         openOverlay();
     }, { passive: false });
 
-    // 右键：拦截原生菜单（此前指向缩略图缓存文件），改用自定义菜单
-    img.addEventListener("contextmenu", e => {
-        e.preventDefault();
-        openImageContextMenu(e.clientX, e.clientY, plugin, file, wrapper, container, ctx, el, option);
-    });
+    // 右键：拦截原生菜单（此前指向缩略图缓存文件），改用自定义菜单。
+    // 实际拦截点在 window 捕获阶段（见 handleCaptureContextMenu 注释），这里只登记
+    // 这张图片对应的菜单上下文，并确保所在 window（支持弹出窗口）已经挂上捕获监听。
+    imageContextMenuData.set(img, { plugin, file, wrapper, container, ctx, el, option });
+    const win = img.ownerDocument.defaultView;
+    if (win) ensureContextMenuCapture(win);
 
     return img;
 }
