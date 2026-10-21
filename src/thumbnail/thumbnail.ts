@@ -48,6 +48,11 @@ export function getThumbPath(filePath: string, mode: ThumbnailMode = "grid"): st
  */
 function loadImageFrame(src: string): Promise<HTMLImageElement> {
   const image = new Image();
+  // 必须在设置 src 之前声明以 CORS 模式加载：不加这个，部分 Electron/Chromium
+  // 版本会把这次加载判定为「无凭证的跨域资源」，canvas.drawImage 之后整张画布
+  // 被标记为 tainted，后续 toBlob/getImageData 一律抛 SecurityError——
+  // 即使资源其实来自 Obsidian 自己的 app:// 协议、本该视为同源。
+  image.crossOrigin = "anonymous";
   const loadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
     image.onload = () => resolve(image);
     image.onerror = (e) => {
@@ -104,6 +109,9 @@ function waitForVideoFrame(video: HTMLVideoElement, src: string): Promise<void> 
       window.clearTimeout(timer);
       reject(new Error(`Failed to load video: ${src}`));
     };
+    // 同 loadImageFrame：取帧用的 canvas 后续要 toBlob 导出，必须在设置 src 之前
+    // 声明 CORS 模式加载，否则同样会在 drawImage 之后把 canvas 标记为 tainted。
+    video.crossOrigin = "anonymous";
     video.src = src;
   });
 }
