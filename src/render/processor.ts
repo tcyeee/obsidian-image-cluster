@@ -3,6 +3,8 @@ import { TFile } from "obsidian";
 import { parseStyleOptions } from "../markdown/style-options";
 import { persistOptionsToSource } from "../markdown/persistence";
 import { ensureThumbnailForFile, getThumbPath } from "../thumbnail/thumbnail";
+import { isVideoExtension } from "../core/config";
+import { PreviewItem } from "../core/domain";
 import { createErrorDiv } from "./elements";
 import { createImage } from "./image";
 import { createContainer } from "./container";
@@ -36,8 +38,8 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
         latestContainerByEl.set(el, container);
 
         const lines = source.split("\n");
-        // 用于大图预览的原图地址列表
-        const srcList: string[] = [];
+        // 用于大图预览的原图/原视频地址列表
+        const srcList: PreviewItem[] = [];
         for (const line of lines) {
             const trimmedLine = line.trim();
             // 同时支持标准 Markdown 格式 ![alt](path) 和 Obsidian 内部链接 ![[path]]。
@@ -73,13 +75,14 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                 wrapper.dataset.imgLine = imageMatches.length === 1 ? trimmedLine : text;
 
                 if (file) {
-                    // 原图 resource 路径（用于点击后的大图预览）
+                    const isVideo = isVideoExtension(file.extension);
+                    // 原图/原视频 resource 路径（用于点击后的大图预览）
                     const originalSrc = plugin.app.vault.getResourcePath(file);
                     const imgIdx = srcList.length;
-                    srcList.push(originalSrc);
+                    srcList.push({ src: originalSrc, isVideo });
 
                     // 缩略图路径（相对于 vault 根目录），按源文件路径 + 目标分辨率 + 显示模式哈希得到，
-                    // 详见 getThumbPath 注释。
+                    // 详见 getThumbPath 注释。视频复用同一套缓存机制，缩略图内容是视频的封面帧。
                     const thumbPath = getThumbPath(file.path, option.layout);
                     // 缩略图文件对象
 
@@ -89,8 +92,8 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                         ? plugin.app.vault.getResourcePath(thumbFile)
                         : originalSrc;
 
-                    // 列表中展示缩略图，点击后仍然使用 srcList 中的原图
-                    const imgEl = createImage(option, thumbSrc, plugin, file, wrapper, container, ctx, el, srcList, imgIdx);
+                    // 列表中展示缩略图（视频展示封面帧 + 播放角标），点击后仍然使用 srcList 中的原图/原视频
+                    const imgEl = createImage(option, thumbSrc, plugin, file, wrapper, container, ctx, el, srcList, imgIdx, isVideo);
                     wrapper.appendChild(imgEl);
                     container.appendChild(wrapper);
                     // 悬停时出现的「排除 / 删除」按钮

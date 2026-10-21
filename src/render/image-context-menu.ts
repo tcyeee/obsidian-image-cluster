@@ -71,6 +71,7 @@ function buildMenuItems(
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
     option: SettingOptions,
+    isVideo: boolean,
 ): ContextMenuItemSpec[] {
     const items: ContextMenuItemSpec[] = [];
 
@@ -83,18 +84,22 @@ function buildMenuItems(
         );
     }
 
-    items.push({
-        icon: "copy",
-        label: t.contextMenu.copyImage,
-        onClick: async () => {
-            try {
-                await copyImageToClipboard(plugin, file);
-            } catch (e: unknown) {
-                new Notice(t.contextMenu.copyImageFailed);
-                console.error(e);
-            }
-        },
-    });
+    // 「复制图片」依赖 toPngBlob 的解码重绘，只对静态图片格式有意义；
+    // 视频没有可比拟的剪贴板写入方式（Clipboard API 不支持写视频），直接不展示这一项。
+    if (!isVideo) {
+        items.push({
+            icon: "copy",
+            label: t.contextMenu.copyImage,
+            onClick: async () => {
+                try {
+                    await copyImageToClipboard(plugin, file);
+                } catch (e: unknown) {
+                    new Notice(t.contextMenu.copyImageFailed);
+                    console.error(e);
+                }
+            },
+        });
+    }
 
     items.push(
         {
@@ -131,11 +136,12 @@ export function openImageContextMenu(
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
     option: SettingOptions,
+    isVideo: boolean,
 ): void {
     closeActiveMenu?.();
 
     const menu = createDiv({ cls: "plugin-image-context-menu" });
-    buildMenuItems(plugin, file, wrapper, container, ctx, el, option).forEach(({ icon, label, onClick, danger, separatorBefore }) => {
+    buildMenuItems(plugin, file, wrapper, container, ctx, el, option, isVideo).forEach(({ icon, label, onClick, danger, separatorBefore }) => {
         if (separatorBefore) {
             menu.appendChild(createDiv({ cls: "plugin-image-context-menu-separator" }));
         }

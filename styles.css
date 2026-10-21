@@ -163,6 +163,69 @@
 	border: 1px solid var(--background-modifier-border, #cccccc);
 }
 
+/* 预览 overlay 中 largeImg / largeVideo 共享同一套尺寸与圆角样式，同一时间只显示其中一个 */
+.plugin-image-large--hidden {
+  display: none;
+}
+
+/* 视频预览：用原生 controls 播放，不需要（也不支持）手势缩放/平移，cursor 恢复默认 */
+.plugin-image-large--video {
+  cursor: default;
+  background-color: #000000;
+}
+
+/* 缩略图生成阶段临时取帧用的 <video>：必须挂进文档才能保证加载/取帧时机稳定
+   （见 thumbnail.ts 的 waitForVideoFrame 注释），但不应该被用户看到——用绝对定位
+   挪出可视区域，而不是 display:none（部分环境下 display:none 的媒体元素同样可能
+   被节流/不解码，挪到屏幕外更保险）。 */
+.plugin-video-thumbnail-source {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Obsidian 官方只给图片 embed 的 .embed-actions 写了 hover 淡入规则（video-embed /
+   media-embed 没有任何等效规则，悬停视频时操作栏永远是 opacity:0，哪怕其中已经有
+   编辑按钮或我们注入的按钮）。这里补上与图片一致的背景板 + hover 淡入，让悬停独立
+   视频 embed 时也能看到「组合图片」按钮，范围精确限定在 .video-embed，不影响其他
+   embed 类型。 */
+.video-embed .embed-actions {
+  corner-shape: var(--embed-actions-corner-shape);
+  box-shadow: var(--embed-actions-shadow);
+  background-color: var(--embed-actions-background);
+  border-radius: var(--embed-actions-radius);
+  padding: var(--embed-actions-padding);
+  backdrop-filter: var(--embed-actions-blur);
+}
+@media (hover: hover) {
+  .cm-content .video-embed:hover .embed-actions {
+    opacity: 1;
+  }
+}
+
+/* 图片组内视频缩略图上的居中播放角标，提示这是一段视频（点击后在大图预览中播放） */
+.plugin-video-play-badge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.plugin-video-play-badge svg {
+  width: 36%;
+  height: 36%;
+  max-width: 48px;
+  max-height: 48px;
+  color: #ffffff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+}
+
 .plugin-image-more-wrapper {
   position: relative;
 }

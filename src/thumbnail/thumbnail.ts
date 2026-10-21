@@ -1,6 +1,6 @@
 import ImgRowPlugin from "main";
 import { Notice, TFile, TFolder, normalizePath } from "obsidian";
-import { IMAGE_EXTENSIONS, config, runtimeDefaults } from "../core/config";
+import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, config, isVideoExtension, runtimeDefaults } from "../core/config";
 import { detectContentRect } from "./content-rect";
 import { md5 } from "./md5";
 import { t } from "../i18n";
@@ -44,8 +44,81 @@ export function getThumbPath(filePath: string, mode: ThumbnailMode = "grid"): st
 }
 
 /**
+ * 加载一张图片用于取帧，返回已加载完成的 HTMLImageElement。
+ */
+function loadImageFrame(src: string): Promise<HTMLImageElement> {
+  const image = new Image();
+  const loadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+    image.onload = () => resolve(image);
+    image.onerror = (e) => {
+      if (e instanceof ErrorEvent && e.error instanceof Error) {
+        reject(e.error);
+      } else {
+        reject(new Error(`Failed to load image: ${src}`));
+      }
+    };
+  });
+  image.src = src;
+  return loadPromise;
+}
+
+/** 等待视频加载的超时时间：本地 vault 文件正常几百毫秒内就能触发 loadeddata，
+ * 超过这个时长基本可以判定加载卡死（例如编解码器不受支持），不应无限挂起。 */
+const VIDEO_FRAME_TIMEOUT_MS = 8000;
+
+/**
+ * 让指定的 <video> 元素加载 src 并定位到可用于截取封面帧的时间点，resolve 后
+ * 该元素的当前帧即为目标封面帧，调用方可直接用 canvas 取帧。
+ *
+ * 视频刚加载完 metadata 时的"当前帧"通常是纯黑（尚未解码出真实画面），
+ * 直接在 currentTime=0 时取帧大概率得到一张黑图。这里先等 loadeddata
+ * （首帧已解码），再显式 seek 到一个很小的时间点（优先 0.1s，视频本身更短则退到时长一半），
+ * 并等待 seeked 事件后才 resolve。
+ *
+ * 调用方必须把 video 元素挂进文档（哪怕挪到屏幕外）后再调用本函数——部分
+ * Electron/Chromium 版本里，从未挂进文档树的 <video> 元素，其资源加载/解码时机
+ * 不受保证，loadeddata 可能迟迟不触发，导致取帧 Promise 永远挂起（表现为缩略图
+ * 一直不生成、<img> 停留在无法渲染的原视频路径上）。这里额外加一个超时兜底，
+ * 避免即便挂进文档后仍卡死时，调用方的 await 无限等下去。
+ */
+function waitForVideoFrame(video: HTMLVideoElement, src: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`Timed out loading video frame: ${src}`));
+    }, VIDEO_FRAME_TIMEOUT_MS);
+
+    video.onloadeddata = () => {
+      const seekTo = Math.min(0.1, (video.duration || 0) / 2);
+      if (!(seekTo > 0)) {
+        window.clearTimeout(timer);
+        resolve();
+        return;
+      }
+      video.onseeked = () => {
+        window.clearTimeout(timer);
+        resolve();
+      };
+      video.currentTime = seekTo;
+    };
+    video.onerror = () => {
+      window.clearTimeout(timer);
+      reject(new Error(`Failed to load video: ${src}`));
+    };
+    video.src = src;
+  });
+}
+
+type ThumbnailFrameSource = HTMLImageElement | HTMLVideoElement;
+
+function getFrameSize(media: ThumbnailFrameSource): { width: number; height: number } {
+  return media.instanceOf(HTMLVideoElement)
+    ? { width: media.videoWidth, height: media.videoHeight }
+    : { width: media.width, height: media.height };
+}
+
+/**
  * 如果指定路径下还不存在缩略图，则：
- * 1. 读取原图（通过 vault.getResourcePath）
+ * 1. 读取原图/视频封面帧（通过 vault.getResourcePath）
  * 2. 使用 canvas 根据指定尺寸生成缩略图
  * 3. 写入 vault 的 cache 目录
  * 4. 生成完成后，刷新所有等待这次生成的 img 元素的 src
@@ -64,6 +137,10 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
   const updateAll = (src: string) => {
     for (const el of waiters) el.src = src;
   };
+
+  // 仅视频路径使用：取帧用的临时 <video> 元素，挂进 document 后才能保证加载触发
+  // （见 waitForVideoFrame 注释），函数结束前（无论成功/失败）必须在 finally 里移除。
+  let videoEl: HTMLVideoElement | null = null;
 
   try {
     // 再次检查，避免并发情况下重复生成
@@ -98,26 +175,25 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
     }
 
     const originalSrc = plugin.app.vault.getResourcePath(file);
+    const isVideo = isVideoExtension(file.extension);
 
-    const image = new Image();
-    const loadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
-      image.onload = () => resolve(image);
-      image.onerror = (e) => {
-        if (e instanceof ErrorEvent && e.error instanceof Error) {
-          reject(e.error);
-        } else {
-          reject(new Error(`Failed to load image: ${originalSrc}`));
-        }
-      };
-    });
-    image.src = originalSrc;
-
-    const loadedImg = await loadPromise;
+    let loadedMedia: ThumbnailFrameSource;
+    if (isVideo) {
+        videoEl = createEl("video");
+        videoEl.classList.add("plugin-video-thumbnail-source");
+        videoEl.muted = true;
+        videoEl.preload = "auto";
+        activeDocument.body.appendChild(videoEl);
+        await waitForVideoFrame(videoEl, originalSrc);
+        loadedMedia = videoEl;
+    } else {
+        loadedMedia = await loadImageFrame(originalSrc);
+    }
 
     // grid 模式：目标缩略图为正方形，以较短边为边长进行居中裁剪，然后缩放到 targetSide。
     // masonry 模式：不裁剪，只按长边基准（targetSide 对应列宽）等比缩放，保留原始长宽比。
     const targetSide = getThumbnailTargetSide();
-    const { width, height } = loadedImg;
+    const { width, height } = getFrameSize(loadedMedia);
     if (!width || !height) return;
 
     // 部分设计稿/截图自带纯色留白（例如四周是黑色画布），直接按整图短边裁剪
@@ -125,8 +201,10 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
     // 再基于实际内容区域生成缩略图，避免缩略图里出现大片纯色边。
     // 这是一种启发式检测，理论上可能误裁到内容本身贴近纯色背景的图片，
     // 因此提供开关，关闭后完全回退到整图（不裁边）。
-    const content = plugin.settings.enableThumbnailBorderTrim
-        ? detectContentRect(loadedImg)
+    // 视频封面帧不参与这项检测（detectContentRect 只接受 HTMLImageElement，
+    // 且视频画面出现大片纯色留白的情况本就少见），直接使用整帧。
+    const content = !isVideo && plugin.settings.enableThumbnailBorderTrim
+        ? detectContentRect(loadedMedia as HTMLImageElement)
         : { sx: 0, sy: 0, sw: width, sh: height };
 
     let sx: number, sy: number, sw: number, sh: number, canvasW: number, canvasH: number;
@@ -152,7 +230,7 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
     canvas.height = canvasH;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(loadedImg, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
+    ctx.drawImage(loadedMedia, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
 
     // 缩略图统一生成为 JPG 格式
     const mimeType = "image/jpeg";
@@ -196,6 +274,7 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
     console.error("Failed to generate thumbnail for", file.path, error);
   } finally {
     generatingThumbnails.delete(thumbPath);
+    videoEl?.remove();
   }
 }
 
@@ -273,9 +352,9 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
  *
  * 关于遍历范围：缓存文件名是 md5(原图路径@分辨率)，单向不可逆，没法从缓存文件反推
  * 原图路径去逐个校验存在性，因此只能反过来枚举原图、算出全部合法缓存名。枚举时用
- * IMAGE_EXTENSIONS 过滤，只取图片文件的路径——笔记和其他附件永远不会有缩略图，
- * 也就不需要读它们的路径。万一漏掉某种插件支持、这里未列出的图片格式，后果只是它的
- * 缓存被当成孤儿删掉、下次渲染时重新生成，不会丢数据。
+ * IMAGE_EXTENSIONS / VIDEO_EXTENSIONS 过滤，只取图片与视频文件的路径——笔记和其他附件
+ * 永远不会有缩略图，也就不需要读它们的路径。万一漏掉某种插件支持、这里未列出的格式，
+ * 后果只是它的缓存被当成孤儿删掉、下次渲染时重新生成，不会丢数据。
  *
  * @returns 实际删除的孤儿缓存文件数
  */
@@ -285,7 +364,8 @@ export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise
 
   const validThumbPaths = new Set<string>();
   for (const file of plugin.app.vault.getFiles()) {
-    if (!IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) continue;
+    const ext = file.extension.toLowerCase();
+    if (!IMAGE_EXTENSIONS.has(ext) && !VIDEO_EXTENSIONS.has(ext)) continue;
     if (file.path.startsWith(runtimeDefaults.thumbnailPath)) continue;
     // 两种模式的缓存路径都算作有效，即便笔记里当前只用到其中一种——
     // 不扫描 markdown 反推"实际用了哪种模式"，宁可保守保留，也不误删另一模式仍然有效的缓存。
