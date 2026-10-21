@@ -1,23 +1,34 @@
+import { PreviewItem } from "../core/domain";
 import { setCssProps } from "../core/dom";
 import { config } from "../core/config";
 
 /**
- * 打开大图预览 overlay。
- * 支持：滚轮/双指捏合缩放、拖拽平移、左右切换（按钮/方向键）、长截图滚动模式。
+ * 打开大图/视频预览 overlay。
+ * 图片支持：滚轮/双指捏合缩放、拖拽平移、左右切换（按钮/方向键）、长截图滚动模式。
+ * 视频：使用原生 <video controls> 播放，不支持缩放/平移——播放进度条/音量本身就需要
+ * 鼠标拖拽，与图片的手势缩放/平移语义冲突，因此视频参与的切换（无论切入还是切出）
+ * 均不做滑动动画，直接换帧展示。
  *
- * @param src - 当前图片源（srcList 不可用时的兜底）
- * @param srcList - 图片组中全部原图地址（用于左右切换）
- * @param idx - 当前图片在 srcList 中的索引
+ * @param item - 当前项（srcList 不可用时的兜底）
+ * @param srcList - 图片组中全部原图/原视频地址（用于左右切换）
+ * @param idx - 当前项在 srcList 中的索引
  */
-export function openImagePreview(src: string, srcList?: string[], idx?: number): void {
+export function openImagePreview(item: PreviewItem, srcList?: PreviewItem[], idx?: number): void {
     let curIdx = idx || 0;
+    const getItem = (i: number): PreviewItem => srcList?.[i] ?? item;
+
     const overlay = createDiv({ cls: "plugin-image-overlay" });
 
     const largeImg = createEl("img");
-    largeImg.src = srcList?.[curIdx] || src;
     largeImg.classList.add("plugin-image-large");
 
-    // 长截图自适应：高宽比 > 2 时切换为可滚动模式，以宽度为基准展示
+    const largeVideo = createEl("video");
+    largeVideo.classList.add("plugin-image-large", "plugin-image-large--video");
+    largeVideo.controls = true;
+    largeVideo.autoplay = true;
+    largeVideo.playsInline = true;
+
+    // 长截图自适应：高宽比 > 2 时切换为可滚动模式，以宽度为基准展示（仅图片）
     const applyTallMode = () => {
         const ratio = largeImg.naturalHeight / largeImg.naturalWidth;
         if (ratio > 2.0) {
@@ -29,7 +40,6 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
         }
     };
     largeImg.addEventListener("load", applyTallMode);
-    if (largeImg.complete && largeImg.naturalWidth > 0) applyTallMode();
 
     const prevBtn = createEl("button");
     prevBtn.textContent = "←";
@@ -52,7 +62,34 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
     };
     const applyTransform = () => setPreviewPos(tx, ty, scale);
 
-    // 滚轮缩放（passive: false 使 preventDefault 生效，阻止 overlay 滚动）
+    // 展示指定项：按类型切换 largeImg / largeVideo 的显隐，并重置缩放/平移状态。
+    // largeImg 与 largeVideo 全程都挂在 overlay 中（只是互相隐藏），而不是按需创建/销毁——
+    // 这样绑在 largeImg 上的缩放/平移手势监听器始终对着同一个元素，不需要在切换时重新绑定。
+    const showItem = (it: PreviewItem) => {
+        scale = 1; tx = 0; ty = 0;
+        overlay.classList.remove("plugin-image-overlay--scrollable");
+        largeImg.classList.remove("plugin-image-large--tall");
+        if (it.isVideo) {
+            largeImg.classList.add("plugin-image-large--hidden");
+            largeVideo.classList.remove("plugin-image-large--hidden");
+            largeVideo.src = it.src;
+        } else {
+            // 切走时停止视频播放/释放资源，避免切到图片后视频仍在背后继续播放
+            largeVideo.pause();
+            largeVideo.removeAttribute("src");
+            largeVideo.load();
+            largeVideo.classList.add("plugin-image-large--hidden");
+            largeImg.classList.remove("plugin-image-large--hidden");
+            setPreviewPos(0, 0, 1);
+            largeImg.src = it.src;
+        }
+    };
+
+    const initialItem = getItem(curIdx);
+    showItem(initialItem);
+    if (!initialItem.isVideo && largeImg.complete && largeImg.naturalWidth > 0) applyTallMode();
+
+    // 滚轮缩放（passive: false 使 preventDefault 生效，阻止 overlay 滚动）——仅图片
     largeImg.addEventListener("wheel", e => {
         e.preventDefault();
         e.stopPropagation();
@@ -70,7 +107,7 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
         applyTransform();
     }, { passive: false });
 
-    // 拖拽平移（鼠标，桌面端）
+    // 拖拽平移（鼠标，桌面端）——仅图片
     let isDragging = false;
     let wasDragged = false; // 用于区分拖拽和点击，避免拖拽结束时误关闭预览
     let dragStartX = 0;
@@ -111,7 +148,7 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
     });
 
     // ---- 触摸事件（移动端） ----
-    // 单指拖拽平移 + 双指捏合缩放
+    // 单指拖拽平移 + 双指捏合缩放（仅图片）
     let lastPinchDist = 0;
     // 追踪捏合手势是否正在进行：捏合期间及最后一根手指抬起时均需屏蔽关闭预览
     let isPinching = false;
@@ -188,12 +225,24 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
         }
     });
 
-    // 切换图片函数（带方向滑动动画）
+    // 切换图片/视频函数（图片之间带方向滑动动画；只要一端涉及视频，直接换帧，不做动画）
     const ANIM_MS = 220;
     let isAnimating = false;
 
     const switchTo = (newIdx: number, direction: "next" | "prev") => {
         if (!srcList || isAnimating) return;
+
+        const curItem = getItem(curIdx);
+        const nextItem = srcList[newIdx];
+
+        if (curItem.isVideo || nextItem.isVideo) {
+            curIdx = newIdx;
+            showItem(nextItem);
+            overlay.scrollTop = 0;
+            updateBtnState();
+            return;
+        }
+
         isAnimating = true;
 
         const exitX = direction === "next" ? -140 : 140;  // 当前图片滑出方向
@@ -207,7 +256,7 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
         window.setTimeout(() => {
             // 阶段二：切换图源，瞬间移到入场起始位置（不触发 transition）
             curIdx = newIdx;
-            largeImg.src = srcList[curIdx];
+            largeImg.src = nextItem.src;
             scale = 1; tx = 0; ty = 0;
             overlay.scrollTop = 0;
 
@@ -251,6 +300,7 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
     updateBtnState();
 
     overlay.appendChild(largeImg);
+    overlay.appendChild(largeVideo);
     activeDocument.body.appendChild(overlay);
 
     window.requestAnimationFrame(() => {
@@ -276,6 +326,7 @@ export function openImagePreview(src: string, srcList?: string[], idx?: number):
     };
     activeDocument.addEventListener("keydown", handleKeydown);
     function closePreview() {
+        largeVideo.pause();
         overlay.classList.remove("plugin-image-overlay-visible");
         window.setTimeout(() => { overlay.remove() }, 300);
         activeDocument.removeEventListener("keydown", handleKeydown);

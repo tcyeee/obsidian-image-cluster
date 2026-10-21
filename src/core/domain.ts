@@ -32,6 +32,12 @@ export class SettingOptions {
     }
 }
 
+/** 大图预览中的一项：图片或视频的原图/原视频地址，及其类型。 */
+export interface PreviewItem {
+    src: string;
+    isVideo: boolean;
+}
+
 export interface SettingPanelDom {
     panel: HTMLDivElement;
     borderCheckbox: HTMLInputElement | null;

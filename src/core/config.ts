@@ -61,6 +61,19 @@ export const IMAGE_EXTENSIONS = new Set([
 ]);
 
 /**
+ * Obsidian 会当作视频嵌入渲染、且 Electron/Chromium 内置 `<video>` 能直接播放的扩展名（小写）。
+ * 不含 mkv/avi 等容器格式——Chromium 对它们的编解码支持不稳定，渲染为视频反而可能什么都放不出来，
+ * 交给 Obsidian 按普通附件链接处理更稳妥。
+ */
+export const VIDEO_EXTENSIONS = new Set([
+    "mp4", "webm", "mov", "m4v", "ogv",
+]);
+
+export function isVideoExtension(extension: string): boolean {
+    return VIDEO_EXTENSIONS.has(extension.toLowerCase());
+}
+
+/**
  * 新建图片组在代码块没有显式配置行时使用的默认外观。
  *
  * 与上面 config 中的调优常量不同：这几个字段代表「当前生效的用户默认值」，

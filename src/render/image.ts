@@ -1,6 +1,6 @@
-import { MarkdownPostProcessorContext, TFile } from "obsidian";
+import { MarkdownPostProcessorContext, TFile, setIcon } from "obsidian";
 import ImgRowPlugin from "main";
-import { SettingOptions } from "../core/domain";
+import { PreviewItem, SettingOptions } from "../core/domain";
 import { setCssProps } from "../core/dom";
 import { openImagePreview } from "./preview";
 import { openImageContextMenu } from "./image-context-menu";
@@ -13,6 +13,7 @@ interface ImageContextMenuData {
     ctx: MarkdownPostProcessorContext;
     el: HTMLElement;
     option: SettingOptions;
+    isVideo: boolean;
 }
 
 // 每张图片对应的右键菜单上下文，用 window 级捕获监听统一查表触发（见下方说明）。
@@ -42,7 +43,7 @@ function handleCaptureContextMenu(e: MouseEvent): void {
     if (!data) return;
     e.preventDefault();
     e.stopPropagation();
-    openImageContextMenu(e.clientX, e.clientY, data.plugin, data.file, data.wrapper, data.container, data.ctx, data.el, data.option);
+    openImageContextMenu(e.clientX, e.clientY, data.plugin, data.file, data.wrapper, data.container, data.ctx, data.el, data.option, data.isVideo);
 }
 
 function ensureContextMenuCapture(win: Window): void {
@@ -63,9 +64,10 @@ function ensureContextMenuCapture(win: Window): void {
  * @param container - 图片组容器，右键菜单里「排除/删除」操作持久化时需要
  * @param ctx - Markdown 代码块处理上下文，右键菜单里「排除/删除」操作持久化时需要
  * @param el - 代码块渲染根节点，右键菜单里「排除/删除」操作持久化时需要
- * @param srcList - 图片列表
- * @param idx - 图片索引
- * @returns 图片元素
+ * @param srcList - 预览列表（图片/视频混合）
+ * @param idx - 当前项在 srcList 中的索引
+ * @param isVideo - 该项是否为视频（视频显示封面帧缩略图 + 播放角标，点击后在预览中播放）
+ * @returns 图片元素（视频同样以封面帧缩略图的形式展示在组内，真正的播放发生在大图预览里）
  */
 export function createImage(
     option: SettingOptions,
@@ -76,8 +78,9 @@ export function createImage(
     container: HTMLDivElement,
     ctx: MarkdownPostProcessorContext,
     el: HTMLElement,
-    srcList?: string[],
+    srcList?: PreviewItem[],
     idx?: number,
+    isVideo = false,
 ): HTMLImageElement {
     const img = createEl("img");
     img.src = src;
@@ -92,7 +95,7 @@ export function createImage(
         "--plugin-image-radius": `${option.radius}px`,
     });
 
-    const openOverlay = () => openImagePreview(src, srcList, idx);
+    const openOverlay = () => openImagePreview({ src, isVideo }, srcList, idx);
 
     // 桌面端：鼠标点击打开预览
     // preventDefault 是必须的：Obsidian 1.13 起，阅读模式给 .markdown-preview-sizer
@@ -125,9 +128,17 @@ export function createImage(
     // 右键：拦截原生菜单（此前指向缩略图缓存文件），改用自定义菜单。
     // 实际拦截点在 window 捕获阶段（见 handleCaptureContextMenu 注释），这里只登记
     // 这张图片对应的菜单上下文，并确保所在 window（支持弹出窗口）已经挂上捕获监听。
-    imageContextMenuData.set(img, { plugin, file, wrapper, container, ctx, el, option });
+    imageContextMenuData.set(img, { plugin, file, wrapper, container, ctx, el, option, isVideo });
     const win = img.ownerDocument.defaultView;
     if (win) ensureContextMenuCapture(win);
+
+    // 视频缩略图是封面静帧，加一个居中的播放角标提示"这其实是一段视频"。
+    if (isVideo) {
+        const badge = createDiv({ cls: "plugin-video-play-badge" });
+        badge.setAttribute("aria-hidden", "true");
+        setIcon(badge, "play");
+        wrapper.appendChild(badge);
+    }
 
     return img;
 }

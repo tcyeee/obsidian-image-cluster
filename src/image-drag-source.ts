@@ -23,12 +23,24 @@ export function registerImageDragSource(plugin: ImgRowPlugin) {
     // target 用 Node（而不是 EventTarget）承接，配合 .instanceOf() 做跨窗口安全的类型判断——
     // 弹出窗口里每个 window 有各自的 HTMLImageElement 构造函数，裸 instanceof 会失效。
     // 调用方传入的是 UIEvent.targetNode（Obsidian 的跨窗口安全扩展）而非裸的 e.target。
-    const isEligibleImage = (target: Node | null): target is HTMLImageElement => {
-        if (!target || !target.instanceOf(HTMLImageElement)) return false;
+    // 同时接受 <video>：独立的视频 embed 也应该能被拖进已有图片组。
+    const isEligibleImage = (target: Node | null): target is HTMLImageElement | HTMLVideoElement => {
+        if (!target || (!target.instanceOf(HTMLImageElement) && !target.instanceOf(HTMLVideoElement))) return false;
         if (!target.closest(".cm-content")) return false; // 仅 Live Preview
         if (target.closest(".plugin-image-wrapper")) return false; // 已经是图片组，跳过
         return true;
     };
+
+    // <video> 默认 draggable=false（HTML 规范里只有 img / 带 href 的 a 默认为 true），
+    // Obsidian 原生视频 embed 不会主动补这个属性，浏览器因此根本不会触发 dragstart——
+    // 下面 dragstart 里的一切判断对视频都是死代码。鼠标移上去时补一下即可，
+    // 和 hover-group-trigger.ts 注入按钮用的是同一个时机。
+    plugin.registerDomEvent(activeDocument, "mouseover", (e: MouseEvent) => {
+        const target = e.targetNode;
+        if (target?.instanceOf(HTMLVideoElement) && isEligibleImage(target)) {
+            target.draggable = true;
+        }
+    });
 
     plugin.registerDomEvent(activeDocument, "dragstart", (e: DragEvent) => {
         if (!plugin.settings.enableDragToGroup) return;

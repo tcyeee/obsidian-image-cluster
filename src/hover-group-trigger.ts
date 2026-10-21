@@ -28,8 +28,10 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
 
     // target 用 Node（而不是 EventTarget）承接，配合下面的 .instanceOf() 做跨窗口安全的类型判断——
     // 见 maybeInject 的调用方，传入的是 UIEvent.targetNode 而非裸的 e.target。
-    const isEligibleImage = (target: Node | null): target is HTMLImageElement => {
-        if (!target || !target.instanceOf(HTMLImageElement)) return false;
+    // 同时接受 <img>（图片 embed）与 <video>（视频 embed，Obsidian 渲染为
+    // .internal-embed.media-embed.video-embed > video），两者都可以被转成图片组。
+    const isEligibleImage = (target: Node | null): target is HTMLImageElement | HTMLVideoElement => {
+        if (!target || (!target.instanceOf(HTMLImageElement) && !target.instanceOf(HTMLVideoElement))) return false;
         // 仅 Live Preview 正文内；顺带排除 1.13 新增的 .cm-image-reveal-tooltip（图片放大浮层），
         // 它同样渲染 .image-embed，但不在 .cm-content 里
         if (!target.closest(".cm-content")) return false;
@@ -37,21 +39,21 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
         return true;
     };
 
-    // 从事件目标解析出待处理的图片：既支持 mouseover（target 是 <img>），
-    // 也支持 focusin（target 是可聚焦的 .image-embed 容器本身）。
-    // 用 .image-embed 而不是 .internal-embed：前者同时覆盖 ![[wiki]] 与 ![](path) 两种写法，
-    // 后者只有 wiki 链接的 embed 才有。
-    const resolveEligibleImage = (target: Node | null): HTMLImageElement | null => {
+    // 从事件目标解析出待处理的图片/视频：既支持 mouseover（target 是 <img>/<video>），
+    // 也支持 focusin（target 是可聚焦的 .image-embed / .video-embed 容器本身）。
+    // 用 .image-embed / .video-embed 而不是 .internal-embed：前两者同时覆盖
+    // ![[wiki]] 与 ![](path) 两种写法，.internal-embed 这个基类选择范围太宽。
+    const resolveEligibleImage = (target: Node | null): HTMLImageElement | HTMLVideoElement | null => {
         if (isEligibleImage(target)) return target;
         if (target && target.instanceOf(Element)) {
-            const embed = target.closest<HTMLElement>(".image-embed");
-            const img = embed?.querySelector("img") ?? null;
-            if (isEligibleImage(img)) return img;
+            const embed = target.closest<HTMLElement>(".image-embed, .video-embed");
+            const media = embed?.querySelector("img, video") ?? null;
+            if (isEligibleImage(media)) return media;
         }
         return null;
     };
 
-    const convertImageToGroup = (img: HTMLImageElement) => {
+    const convertImageToGroup = (img: HTMLImageElement | HTMLVideoElement) => {
         const editorRoot = img.closest<HTMLElement>(".cm-editor");
         const view = editorRoot ? EditorView.findFromDOM(editorRoot) : null;
         if (!view) return;
@@ -65,12 +67,25 @@ export function registerHoverGroupTrigger(plugin: ImgRowPlugin) {
         view.dispatch({ changes: { from: line.from, to: line.to, insert: wrapped } });
     };
 
-    const injectGroupButton = (img: HTMLImageElement) => {
-        const embed = img.closest<HTMLElement>(".image-embed");
-        const actionsEl = embed?.querySelector<HTMLElement>(":scope > .embed-actions");
-        // .embed-actions 由官方在 widget 建 DOM 时就创建，正常情况下这里一定拿得到；
-        // 拿不到就直接放弃本次（不记进 injected），下一次 mouseover 会再试
-        if (!actionsEl || injected.has(actionsEl)) return;
+    const injectGroupButton = (img: HTMLImageElement | HTMLVideoElement) => {
+        const embed = img.closest<HTMLElement>(".image-embed, .video-embed");
+        if (!embed) return;
+
+        let actionsEl = embed.querySelector<HTMLElement>(":scope > .embed-actions");
+        if (!actionsEl) {
+            // 图片 embed：.embed-actions 由官方在 widget 建 DOM 时就创建，这里拿不到
+            // 说明时机太早，直接放弃本次（不记进 injected），下一次 mouseover 会再试——
+            // 如果现在自己补建一个，官方随后创建自己的容器时就会出现两个 .embed-actions。
+            //
+            // 视频 embed：官方的 CM6 widget 分支里，视频走的是纯 hookClickHandler，
+            // 从不调用 addEditButton/addActions，永远不会自己创建 .embed-actions，
+            // 必须由插件补建，否则按钮永远没地方插。class 名对了，官方通用的定位/
+            // opacity 过渡 CSS，以及本插件给 .video-embed 补的 hover 淡入 CSS
+            // （见 styles.css）都会按选择器自动生效，不需要再管定位。
+            if (!embed.hasClass("video-embed")) return;
+            actionsEl = embed.createDiv({ cls: "embed-actions" });
+        }
+        if (injected.has(actionsEl)) return;
 
         // embed-action：官方按钮样式（尺寸、圆角、hover 高亮、移动端放大）
         const btn = createDiv({ cls: "embed-action plugin-image-group-action" });
