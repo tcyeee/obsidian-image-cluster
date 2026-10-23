@@ -128,7 +128,14 @@ function applyLimitRows(container: HTMLDivElement, option: SettingOptions, onLim
     // 开启限制：等待一帧，让浏览器先完成布局，再根据 offsetTop 实际分行。
     // 如果此时容器宽度为 0（例如笔记面板还在布局中），使用 LIMIT_DELAY / LIMIT_MAX_RETRY 做有限次重试，
     // 避免「首次打开页面时不生效，只有手动再勾一次 limit 才生效」的问题。
+    //
+    // 重试耗尽后容器宽度仍为 0 的情况不能直接按「能放下」处理：这通常意味着容器此刻位于
+    // 当前不可见的那份 DOM 副本里（例如 Obsidian 同时挂载了 Reading / Live Preview 两份内容，
+    // 只 CSS 切换可见性），offsetTop 对所有子元素永远是 0，会被误判成"只有一行、不用折叠"，
+    // 导致切换过去后看到的是完全不限制的状态。这种情况下改用 ResizeObserver 持续等待，
+    // 直到容器真正可见、拿到非 0 宽度后再计算一次，而不是在耗尽重试后瞎猜。
     let retryCount = 0;
+    let pendingResizeObserver: ResizeObserver | null = null;
 
     const runLimit = () => {
         const items = Array.from(
@@ -136,10 +143,24 @@ function applyLimitRows(container: HTMLDivElement, option: SettingOptions, onLim
         );
         if (items.length === 0) return;
 
-        // 如果容器还没有正确布局（宽度为 0），稍后重试一次
-        if (container.offsetWidth === 0 && retryCount < config.LIMIT_MAX_RETRY) {
-            retryCount++;
-            window.setTimeout(runLimit, config.LIMIT_DELAY);
+        if (container.offsetWidth === 0) {
+            // 如果容器还没有正确布局（宽度为 0），稍后重试一次
+            if (retryCount < config.LIMIT_MAX_RETRY) {
+                retryCount++;
+                window.setTimeout(runLimit, config.LIMIT_DELAY);
+                return;
+            }
+            // 限时重试已经耗尽，但宽度依然是 0：不再猜测，挂一个 ResizeObserver 持续等待，
+            // 直到容器真正可见/有宽度时再触发一次计算。
+            if (!pendingResizeObserver) {
+                pendingResizeObserver = new ResizeObserver(() => {
+                    if (container.offsetWidth === 0) return;
+                    pendingResizeObserver?.disconnect();
+                    pendingResizeObserver = null;
+                    runLimit();
+                });
+                pendingResizeObserver.observe(container);
+            }
             return;
         }
 
