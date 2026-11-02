@@ -53,6 +53,18 @@ function ensureContextMenuCapture(win: Window): void {
 }
 
 /**
+ * "+N" 蒙版（见 layout.ts）以 pointer-events: all 整个盖住它所在的 <img>，
+ * 右键事件的 target 会是蒙版本身而不是 <img>，导致上面 window 捕获阶段的
+ * handleCaptureContextMenu 直接跳过（target 不是 HTMLImageElement）。
+ * 蒙版自己的 contextmenu 监听改为调用这个函数，按同一张 <img> 登记的数据弹出菜单。
+ */
+export function openContextMenuForImage(img: HTMLImageElement, x: number, y: number): void {
+    const data = imageContextMenuData.get(img);
+    if (!data) return;
+    openImageContextMenu(x, y, data.plugin, data.file, data.wrapper, data.container, data.ctx, data.el, data.option, data.isVideo);
+}
+
+/**
  * 创建图片组中的单个图片元素，并应用对应的配置。
  * 点击（桌面端）或轻触（移动端）时打开大图预览。
  *
