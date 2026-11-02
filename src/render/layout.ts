@@ -1,6 +1,7 @@
 import { SettingOptions } from "../core/domain";
 import { setCssProps } from "../core/dom";
 import { config } from "../core/config";
+import { openContextMenuForImage } from "./image";
 
 // 关联每个图片容器与其设置面板中的 limit 复选框，供蒙版点击时直接同步 UI 状态
 export const containerLimitCheckboxMap = new WeakMap<HTMLDivElement, HTMLInputElement>();
@@ -244,6 +245,14 @@ function applyLimitRows(container: HTMLDivElement, option: SettingOptions, onLim
                     applySettingsToContainer(container, option);
                     if (onLimitTogglePersist) onLimitTogglePersist();
                 });
+                // 蒙版整个盖住了下面的 <img>，右键事件的 target 会是蒙版而不是 <img>，
+                // 需要转发给同一张图片登记的右键菜单数据，否则右键菜单在这张缩略图上永远弹不出来。
+                mask.addEventListener("contextmenu", (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const img = el.querySelector<HTMLImageElement>("img.plugin-image");
+                    if (img) openContextMenuForImage(img, event.clientX, event.clientY);
+                });
 
                 el.appendChild(mask);
             } else {
@@ -412,6 +421,13 @@ export function applyMasonryLayout(
                     if (limitCheckbox) limitCheckbox.checked = false;
                     applySettingsToContainer(container, option);
                     if (onLimitTogglePersist) onLimitTogglePersist();
+                });
+                // 同上：蒙版盖住了 <img>，右键需要转发给它。
+                mask.addEventListener("contextmenu", (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const img = overlayEl.querySelector<HTMLImageElement>("img.plugin-image");
+                    if (img) openContextMenuForImage(img, event.clientX, event.clientY);
                 });
 
                 overlayEl.appendChild(mask);
