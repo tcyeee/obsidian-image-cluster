@@ -140,6 +140,10 @@ export function openImageContextMenu(
 ): void {
     closeActiveMenu?.();
 
+    // 右键菜单弹出期间，给对应图片套一圈发光描边，提示"菜单操作的是这张图"。
+    // 用 box-shadow 而不是 border：box-shadow 不占布局空间，不会把左右/上下的图片挤开 2px。
+    wrapper.addClass("plugin-image-wrapper--context-active");
+
     const menu = createDiv({ cls: "plugin-image-context-menu" });
     buildMenuItems(plugin, file, wrapper, container, ctx, el, option, isVideo).forEach(({ icon, label, onClick, danger, separatorBefore }) => {
         if (separatorBefore) {
@@ -175,6 +179,7 @@ export function openImageContextMenu(
     const close = () => {
         abortCtrl.abort();
         menu.remove();
+        wrapper.removeClass("plugin-image-wrapper--context-active");
         closeActiveMenu = null;
     };
     closeActiveMenu = close;

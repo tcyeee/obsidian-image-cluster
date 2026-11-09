@@ -9,6 +9,13 @@ import { t } from "../i18n";
 export function createImageContainerElement(option: SettingOptions): HTMLDivElement {
     const container = createDiv({ cls: "plugin-image-container" });
     setCssProps(container, { "--plugin-container-gap": `${option.gap}px` });
+    // 图片/蒙版自身的右键菜单逻辑（image.ts、layout.ts）都会在命中时 stopPropagation，
+    // 事件到不了这里；只有落在图片组间隙（容器留白、wrapper 边距等空白处）的右键才会冒泡
+    // 到容器——这里统一拦截，避免误触弹出系统/Obsidian 默认菜单。
+    container.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    });
     return container;
 }
 

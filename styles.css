@@ -17,6 +17,11 @@
 .plugin-image-dragline-before { box-shadow: 0 -3px 0 0 var(--interactive-accent, #5677c0); }
 .plugin-image-dragline-after  { box-shadow: 0  3px 0 0 var(--interactive-accent, #5677c0); }
 
+/* 右键菜单弹出期间，高亮当前图片。box-shadow 不占布局空间，不会把相邻图片挤开 2px。 */
+.plugin-image-wrapper--context-active {
+  box-shadow: 0 0 0 2px var(--interactive-accent, #5677c0), 0 0 8px 2px var(--interactive-accent, #5677c0);
+}
+
 .plugin-image {
   display: block;
   object-fit: cover;
