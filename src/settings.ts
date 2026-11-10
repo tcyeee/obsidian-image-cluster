@@ -161,6 +161,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                         name: t.settings.cachePath.name,
                         desc: t.settings.cachePath.desc,
                         render: (setting: Setting) => {
+                            setting.settingEl.addClass("plugin-advanced-setting-stacked");
+
                             let textComponent: TextComponent;
                             let confirmButton: ButtonComponent;
                             let cancelButton: ButtonComponent;
@@ -213,6 +215,8 @@ export class ImgRowSettingTab extends PluginSettingTab {
                         name: t.settings.cache.name,
                         desc: t.settings.cache.desc,
                         render: (setting: Setting) => {
+                            setting.settingEl.addClass("plugin-advanced-setting-stacked");
+
                             const sizeLabel = setting.controlEl.createSpan({ cls: "plugin-cache-size" });
                             void refreshCacheSize(this.plugin, sizeLabel);
 

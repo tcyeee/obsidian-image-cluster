@@ -739,6 +739,25 @@
   flex-shrink: 0;
 }
 
+/* 高级设置里的缓存路径/缓存大小两项：控件单独一行放在标题+说明下方，而不是挤在同一行右侧 */
+.plugin-advanced-setting-stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.plugin-advanced-setting-stacked .setting-item-info {
+  margin-right: 0;
+}
+
+.plugin-advanced-setting-stacked .setting-item-control {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.plugin-advanced-setting-stacked .setting-item-control input[type="text"] {
+  flex-grow: 1;
+}
+
 /* setting 面板底部：跳转到插件设置页，与上方分组用分割线隔开 */
 .plugin-image-setting-footer {
   border-top: 1px solid var(--background-modifier-border);
