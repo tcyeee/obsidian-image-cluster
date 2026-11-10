@@ -58,16 +58,22 @@ function removeImageFromGroup(
 }
 
 /**
- * 删除缓存缩略图与原图文件（走系统/Obsidian 回收站，而非直接抹除，与核心「删除文件」命令保持一致）。
+ * 删除缓存缩略图与原图文件。缓存缩略图由 adapter 直接抹除（可再生的缓存，无需进回收站）；
+ * 原图仍走系统/Obsidian 回收站，与核心「删除文件」命令保持一致。
  * grid / masonry 两种模式各自独立的缓存都尝试删除——原图本身都没了，不管当前笔记用的是
  * 哪种模式，另一种模式的缓存留着也只会变成孤儿，不如借这次操作顺手一并清掉。
  */
 async function deleteImageFile(plugin: ImgRowPlugin, file: TFile): Promise<void> {
     for (const mode of THUMBNAIL_MODES) {
         const thumbPath = getThumbPath(file.path, mode);
-        const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
-        if (thumbFile instanceof TFile) {
-            await plugin.app.fileManager.trashFile(thumbFile);
+        // 缓存现在直接由 adapter 写入、绕开 Vault 索引，因此删除也走 adapter.remove（永久删除，
+        // 不进回收站——缩略图是可再生的缓存，无需保留在回收站里）。
+        try {
+            if (await plugin.app.vault.adapter.exists(thumbPath)) {
+                await plugin.app.vault.adapter.remove(thumbPath);
+            }
+        } catch (error: unknown) {
+            console.error("Failed to delete thumbnail cache", thumbPath, error);
         }
     }
     await plugin.app.fileManager.trashFile(file);

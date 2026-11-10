@@ -731,6 +731,14 @@
     color: var(--text-error, #e93147);
 }
 
+/* 缓存大小文字：面板较窄，字号/字重加强避免被按钮挤到换行或裁切 */
+.plugin-cache-size {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* setting 面板底部：跳转到插件设置页，与上方分组用分割线隔开 */
 .plugin-image-setting-footer {
   border-top: 1px solid var(--background-modifier-border);

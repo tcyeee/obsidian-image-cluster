@@ -1,6 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting, SettingDefinitionItem, TextComponent, ButtonComponent } from "obsidian";
 import ImgRowPlugin from "main";
-import { config, runtimeDefaults, isDotPrefixedCachePath, normalizeCacheFolderPath } from "./core/config";
+import { config, runtimeDefaults, normalizeCacheFolderPath } from "./core/config";
+import { computeThumbnailCacheSize, clearThumbnailCache } from "./thumbnail/thumbnail";
 import { t, setLocale, LanguagePreference } from "./i18n";
 
 export interface ImgRowPluginSettings {
@@ -46,12 +47,9 @@ export function applySettingsToConfig(settings: ImgRowPluginSettings) {
     runtimeDefaults.border = settings.defaultBorder;
     runtimeDefaults.shadow = settings.defaultShadow;
 
-    // 防御性兜底：正常情况下设置页的 UI 已经拒绝了点开头的非法路径，这里再检查一次是
-    // 为了兼容 data.json 被手动编辑成非法值的情况，避免缓存目录悄悄变成 Obsidian 不索引的路径。
-    const normalizedCachePath = normalizeCacheFolderPath(settings.cachePath);
-    runtimeDefaults.thumbnailPath = isDotPrefixedCachePath(normalizedCachePath)
-        ? normalizeCacheFolderPath(config.DEFAULT_THUMBNAIL_PATH)
-        : normalizedCachePath;
+    // 防御性兜底：正常情况下设置页 UI 已经处理过非法值，这里再归一化一次即可。
+    // 点开头的路径（如默认的 .obsidian/...）现在完全合法：缓存读写走 adapter，不依赖 Vault 索引。
+    runtimeDefaults.thumbnailPath = normalizeCacheFolderPath(settings.cachePath);
 }
 
 export class ImgRowSettingTab extends PluginSettingTab {
@@ -190,10 +188,6 @@ export class ImgRowSettingTab extends PluginSettingTab {
                                     .setCta()
                                     .onClick(async () => {
                                         const rawValue = textComponent.getValue();
-                                        if (isDotPrefixedCachePath(normalizeCacheFolderPath(rawValue))) {
-                                            new Notice(t.settings.cachePath.invalidPath);
-                                            return;
-                                        }
                                         this.plugin.settings.cachePath = rawValue;
                                         applySettingsToConfig(this.plugin.settings);
                                         await this.plugin.saveSettings();
@@ -215,8 +209,55 @@ export class ImgRowSettingTab extends PluginSettingTab {
                             refreshButtonsVisibility();
                         },
                     },
+                    {
+                        name: t.settings.cache.name,
+                        desc: t.settings.cache.desc,
+                        render: (setting: Setting) => {
+                            const sizeLabel = setting.controlEl.createSpan({ cls: "plugin-cache-size" });
+                            void refreshCacheSize(this.plugin, sizeLabel);
+
+                            setting.addButton(button => {
+                                button
+                                    .setButtonText(t.settings.cache.clear)
+                                    .onClick(async () => {
+                                        button.setDisabled(true);
+                                        try {
+                                            await clearThumbnailCache(this.plugin);
+                                        } catch (error) {
+                                            console.error("Failed to clear thumbnail cache", error);
+                                            new Notice(t.settings.cache.clearFailed);
+                                        }
+                                        await refreshCacheSize(this.plugin, sizeLabel);
+                                        button.setDisabled(false);
+                                    });
+                            });
+                        },
+                    },
                 ],
             },
         ];
     }
+}
+
+/** 读取当前缩略图缓存占用空间，写入设置页的尺寸标签。 */
+async function refreshCacheSize(plugin: ImgRowPlugin, label: HTMLElement): Promise<void> {
+    try {
+        label.setText(formatBytes(await computeThumbnailCacheSize(plugin)));
+    } catch (error) {
+        console.error("Failed to compute thumbnail cache size", error);
+        label.setText(t.settings.cache.sizeUnknown);
+    }
+}
+
+/** 1.0 KB 而非 1024 B——设置页展示，四舍五入到一位小数。 */
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ["KB", "MB", "GB"];
+    let value = bytes / 1024;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex++;
+    }
+    return `${value.toFixed(1)} ${units[unitIndex]}`;
 }

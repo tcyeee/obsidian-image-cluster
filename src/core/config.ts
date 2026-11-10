@@ -9,10 +9,15 @@ export const config = {
 
     /* THUMBNAIL */
     // 缩略图缓存目录的默认值，也是用户在设置里把路径清空/重置时回退到的值。
-    // 注意：Obsidian 对以 "." 开头的目录（例如 ".cache"）不会作为 Vault 内容进行索引，
-    // 因此缩略图目录必须使用非点开头的路径，才能通过 vault.getAbstractFileByPath 正常访问
-    // ——normalizeCacheFolderPath/isDotPrefixedCachePath 就是用来在运行时校验这一点的。
-    DEFAULT_THUMBNAIL_PATH: "assets/cache/",
+    // 缓存目录放在插件自身目录（.obsidian/plugins/image-cluster/）下：这是一个以 "." 开头的
+    // 隐藏目录，Obsidian 不会把它作为 Vault 内容索引，因此缩略图不会出现在文件管理器、搜索、
+    // 图谱里，也不会被 Obsidian Sync 同步——对纯缓存来说这些正是想要的效果。
+    // 缩略图的读写全程通过 app.vault.adapter（DataAdapter）直接操作磁盘、绕开 Vault 索引，
+    // 因此点开头的路径也能正常访问。这是与旧实现（assets/cache/ 版本）最大的区别：旧实现
+    // 依赖 vault.getAbstractFileByPath，只能用非点开头的已索引目录。
+    DEFAULT_THUMBNAIL_PATH: ".obsidian/plugins/image-cluster/cache/",
+    // 旧版本（<=1.4.11）使用的默认缓存目录，仅在启动时用于把老用户的旧缓存迁移到新位置。
+    LEGACY_THUMBNAIL_PATH: "assets/cache/",
     THUMBNAIL_QUALITY: 0.8, // 缩略图质量
     THUMBNAIL_SIZE: 220,    // 缩略图基准尺寸（1x），需 >= LARGE_SIZE 才能保证三档展示尺寸都清晰；实际生成分辨率会再乘以 devicePixelRatio（见 thumbnail.ts）
     MAX_VISIBLE_ROWS: 3,    // 最多显示 3 行
@@ -90,16 +95,6 @@ export const runtimeDefaults = {
     border: false,
     thumbnailPath: config.DEFAULT_THUMBNAIL_PATH,
 };
-
-/**
- * 判断一个已归一化的路径里是否存在以 "." 开头的路径段（如 ".cache"、"foo/.bar"）。
- * Obsidian 不会索引这类目录，一旦用户把缓存目录配置成这种路径，缩略图会被写入磁盘但
- * vault.getAbstractFileByPath 永远查不到，导致每次都当成"不存在"重新生成，旧文件永久残留。
- * 因此在写入 runtimeDefaults.thumbnailPath 之前必须挡掉这类输入。
- */
-export function isDotPrefixedCachePath(normalizedPath: string): boolean {
-    return normalizedPath.split("/").some(segment => segment.startsWith("."));
-}
 
 /**
  * 把用户在设置里填写的缓存目录路径，归一化成以单个 "/" 结尾的形式。

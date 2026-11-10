@@ -2,7 +2,7 @@ import ImgRowPlugin from "main";
 import { TFile } from "obsidian";
 import { parseStyleOptions } from "../markdown/style-options";
 import { persistOptionsToSource } from "../markdown/persistence";
-import { ensureThumbnailForFile, getThumbPath } from "../thumbnail/thumbnail";
+import { ensureThumbnailForFile, getThumbPath, getThumbnailResourcePath, isThumbnailCached } from "../thumbnail/thumbnail";
 import { isVideoExtension } from "../core/config";
 import { PreviewItem } from "../core/domain";
 import { createErrorDiv } from "./elements";
@@ -84,12 +84,10 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     // 缩略图路径（相对于 vault 根目录），按源文件路径 + 目标分辨率 + 显示模式哈希得到，
                     // 详见 getThumbPath 注释。视频复用同一套缓存机制，缩略图内容是视频的封面帧。
                     const thumbPath = getThumbPath(file.path, option.layout);
-                    // 缩略图文件对象
-
-                    const thumbFile = plugin.app.vault.getAbstractFileByPath(thumbPath);
-                    // 缩略图资源路径
-                    const thumbSrc = thumbFile instanceof TFile
-                        ? plugin.app.vault.getResourcePath(thumbFile)
+                    // 缩略图是否已缓存由启动时建立的内存索引同步判断（adapter.exists 是异步的，
+                    // 而代码块处理器是同步回调）；命中则直接给缩略图 resource 路径，未命中先用原图兜底。
+                    const thumbSrc = isThumbnailCached(thumbPath)
+                        ? getThumbnailResourcePath(plugin, thumbPath)
                         : originalSrc;
 
                     // 列表中展示缩略图（视频展示封面帧 + 播放角标），点击后仍然使用 srcList 中的原图/原视频
@@ -100,7 +98,7 @@ export function addImageLayoutMarkdownProcessor(plugin: ImgRowPlugin) {
                     attachImageWrapperActions(wrapper, file, container, plugin, ctx, el, option);
 
                     // 如果当前还没有缩略图，则在后台异步生成一份，并在生成后刷新当前 img 的 src
-                    if (!(thumbFile instanceof TFile)) {
+                    if (!isThumbnailCached(thumbPath)) {
                         void ensureThumbnailForFile(plugin, file, thumbPath, imgEl, option.layout);
                     }
                 } else {

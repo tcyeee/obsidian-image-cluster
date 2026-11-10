@@ -38,10 +38,16 @@ export const en = {
         },
         cachePath: {
             name: "Cache folder path",
-            desc: "Vault-relative folder where generated thumbnail cache files are stored. Leave blank to reset to the default (\"assets/cache/\"). Must not contain a dot-prefixed segment (e.g. \".cache\"), since Obsidian doesn't index those folders. Changing this does not move existing cache files — they stay in the old folder (safe to delete manually) and are regenerated at the new location on next use. Edits only take effect once you click the checkmark to confirm.",
-            invalidPath: "Cache folder path cannot contain a dot-prefixed segment (e.g. \".cache\") — change was not applied.",
+            desc: "Vault-relative folder where generated thumbnail cache files are stored. Leave blank to reset to the default (\".obsidian/plugins/image-cluster/cache/\"). Dot-prefixed folders (like the default) are fine — they are hidden from the file explorer and not synced. Changing this does not move existing cache files — they stay in the old folder (safe to delete manually) and are regenerated at the new location on next use. Edits only take effect once you click the checkmark to confirm.",
             apply: "Apply",
             discard: "Discard",
+        },
+        cache: {
+            name: "Cache",
+            desc: "Generated thumbnail cache. Clear it to free up disk space; thumbnails will regenerate on next use.",
+            clear: "Clear cache",
+            clearFailed: "Failed to clear the cache.",
+            sizeUnknown: "Unknown",
         },
         thumbnailBorderTrim: {
             name: "Trim solid-color borders in thumbnails",

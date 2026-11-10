@@ -1,15 +1,55 @@
 import ImgRowPlugin from "main";
-import { Notice, TFile, TFolder, normalizePath } from "obsidian";
-import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, config, isVideoExtension, runtimeDefaults } from "../core/config";
+import { DataAdapter, Notice, TFile, normalizePath } from "obsidian";
+import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, config, isVideoExtension, normalizeCacheFolderPath, runtimeDefaults } from "../core/config";
 import { detectContentRect } from "./content-rect";
 import { md5 } from "./md5";
 import { t } from "../i18n";
 
 // 记录每个正在生成中的缩略图路径 -> 等待这次生成结果的所有 <img> 元素。
-// 避免并发情况下对同一文件重复 createBinary 导致 "File already exists."，
-// 同时保证「生成期间该代码块被重渲染、传入了一个新的 img 元素」时，
-// 新元素也能在生成完成后收到 src 更新，而不是只有第一次调用时传入的（可能已被移除的）元素收到。
+// 避免并发情况下对同一文件重复生成，同时保证「生成期间该代码块被重渲染、传入了一个
+// 新的 img 元素」时，新元素也能在生成完成后收到 src 更新，而不是只有第一次调用时
+// 传入的（可能已被移除的）元素收到。
 const generatingThumbnails = new Map<string, Set<HTMLImageElement>>();
+
+// 已知存在于磁盘上的缩略图缓存文件路径集合（模块级内存索引）。
+// adapter.exists 是异步的，而 markdown 代码块处理器是同步回调——为了在缩略图已缓存时
+// 仍能同步拿到它的 resource 路径（避免先用原图撑一帧、再闪切成缩略图的闪屏），
+// 启动时扫描缓存目录建一次索引（见 seedThumbnailCacheIndex），之后在生成/删除缓存时增量维护。
+const knownThumbnailFiles = new Set<string>();
+
+/** 同步判断某个缩略图缓存文件是否已经存在于磁盘上（供渲染处理器在同步回调里使用）。 */
+export function isThumbnailCached(thumbPath: string): boolean {
+    return knownThumbnailFiles.has(thumbPath);
+}
+
+/** 缩略图缓存文件的 resource 路径（app:// 形式），直接用 adapter 计算、不依赖 Vault 索引。 */
+export function getThumbnailResourcePath(plugin: ImgRowPlugin, thumbPath: string): string {
+    return plugin.app.vault.adapter.getResourcePath(thumbPath);
+}
+
+/**
+ * 启动时扫描一次缓存目录，把已存在的缓存文件路径填入 knownThumbnailFiles 索引，
+ * 使渲染处理器在同步回调里就能命中缓存、无需闪回原图。
+ */
+export async function seedThumbnailCacheIndex(plugin: ImgRowPlugin): Promise<void> {
+    const cacheDir = normalizePath(runtimeDefaults.thumbnailPath);
+    try {
+        if (!(await plugin.app.vault.adapter.exists(cacheDir))) return;
+        const { files } = await plugin.app.vault.adapter.list(cacheDir);
+        for (const filePath of files) knownThumbnailFiles.add(filePath);
+    } catch (error: unknown) {
+        console.error("Failed to index thumbnail cache", error);
+    }
+}
+
+/** 递归确保某个目录存在（DataAdapter.mkdir 的父目录创建行为不保证跨版本一致，这里显式逐级创建）。 */
+async function ensureDir(adapter: DataAdapter, dir: string): Promise<void> {
+    if (!dir) return;
+    if (await adapter.exists(dir)) return;
+    const parent = dir.slice(0, dir.lastIndexOf("/"));
+    if (parent && parent !== dir) await ensureDir(adapter, parent);
+    await adapter.mkdir(dir);
+}
 
 /** 缩略图产出模式：grid 沿用现状的居中裁剪成正方形，masonry 保留长宽比等比缩放、不裁剪。 */
 export type ThumbnailMode = "grid" | "masonry";
@@ -128,12 +168,12 @@ function getFrameSize(media: ThumbnailFrameSource): { width: number; height: num
  * 如果指定路径下还不存在缩略图，则：
  * 1. 读取原图/视频封面帧（通过 vault.getResourcePath）
  * 2. 使用 canvas 根据指定尺寸生成缩略图
- * 3. 写入 vault 的 cache 目录
+ * 3. 通过 adapter 直接写入缓存目录（绕开 Vault 索引）
  * 4. 生成完成后，刷新所有等待这次生成的 img 元素的 src
  */
 export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, thumbPath: string, imgEl: HTMLImageElement, mode: ThumbnailMode = "grid"): Promise<void> {
   // 同一缩略图已经有生成任务在进行：把这个 img 元素也加入等待列表，然后直接返回，
-  // 不重复触发生成（避免并发 createBinary 报错），也不会遗漏这次调用的 img 更新。
+  // 不重复触发生成，也不会遗漏这次调用的 img 更新。
   const pending = generatingThumbnails.get(thumbPath);
   if (pending) {
     pending.add(imgEl);
@@ -150,35 +190,26 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
   // （见 waitForVideoFrame 注释），函数结束前（无论成功/失败）必须在 finally 里移除。
   let videoEl: HTMLVideoElement | null = null;
 
-  try {
-    // 再次检查，避免并发情况下重复生成
-    const existed = plugin.app.vault.getAbstractFileByPath(thumbPath);
-    if (existed instanceof TFile) {
-      updateAll(plugin.app.vault.getResourcePath(existed));
-      return;
-    }
+  const adapter = plugin.app.vault.adapter;
 
-    // 兼容旧版本：如果之前是通过 adapter 直接写入文件，Vault 里还没有对应的 TFile，
-    // 此时磁盘上已经有同名文件，但 getAbstractFileByPath 返回 null。
-    // 为了避免反复触发 "File already exists." 报错，这里如果检测到磁盘上已有文件，
-    // 就直接跳过生成逻辑，等 Obsidian 后台索引完毕后再正常使用。
-    const existsOnDisk = await plugin.app.vault.adapter.exists(thumbPath);
-    if (existsOnDisk) {
+  try {
+    // 再次检查，避免并发情况下重复生成；命中缓存则直接换用缩略图，并把路径记入内存索引。
+    if (await adapter.exists(thumbPath)) {
+      knownThumbnailFiles.add(thumbPath);
+      updateAll(adapter.getResourcePath(thumbPath));
       return;
     }
 
     // 兼容更早版本：分辨率信息加入缓存 key 之前，缓存路径是 md5(file.path)（不带分辨率后缀）。
     // 引入分辨率后缀后，那批旧缓存不会再被任何路径引用，会变成永久孤儿。趁着这次要
-    // 重新生成缩略图，顺手把旧缓存清掉，避免 assets/cache/ 无限堆积。
+    // 重新生成缩略图，顺手把旧缓存清掉，避免缓存目录无限堆积。
     const legacyThumbPath = normalizePath(`${runtimeDefaults.thumbnailPath}${md5(file.path)}`);
-    if (legacyThumbPath !== thumbPath) {
-      const legacyThumb = plugin.app.vault.getAbstractFileByPath(legacyThumbPath);
-      if (legacyThumb instanceof TFile) {
-        try {
-          await plugin.app.fileManager.trashFile(legacyThumb);
-        } catch (error: unknown) {
-          console.error("Failed to clean up legacy thumbnail cache", file.path, error);
-        }
+    if (legacyThumbPath !== thumbPath && (await adapter.exists(legacyThumbPath))) {
+      try {
+        await adapter.remove(legacyThumbPath);
+        knownThumbnailFiles.delete(legacyThumbPath);
+      } catch (error: unknown) {
+        console.error("Failed to clean up legacy thumbnail cache", file.path, error);
       }
     }
 
@@ -249,36 +280,21 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
 
     const arrayBuffer = await blob.arrayBuffer();
 
-    // 确保目录存在
+    // 确保缓存目录存在，然后直接通过 adapter 写入二进制文件（绕开 Vault 索引，
+    // 因此点开头的目录也能写；同名文件直接覆盖）。
     const parts = thumbPath.split("/");
     if (parts.length > 1) {
       const dir = parts.slice(0, -1).join("/");
       if (dir) {
-        await plugin.app.vault.adapter.mkdir(dir);
+        await ensureDir(adapter, dir);
       }
     }
+    await adapter.writeBinary(thumbPath, arrayBuffer);
 
-    // 使用 Obsidian Vault API 创建/更新二进制文件，确保新文件立刻被 Vault 识别
-    let newThumb: TFile;
-    const existedAfterMkdir = plugin.app.vault.getAbstractFileByPath(thumbPath);
-    if (existedAfterMkdir instanceof TFile) {
-      await plugin.app.vault.modifyBinary(existedAfterMkdir, arrayBuffer);
-      newThumb = existedAfterMkdir;
-    } else {
-      newThumb = await plugin.app.vault.createBinary(thumbPath, arrayBuffer);
-    }
-
-    // 写入完成后，刷新所有等待这次生成的 img 元素的 src
-    updateAll(plugin.app.vault.getResourcePath(newThumb));
+    // 写入完成后，刷新所有等待这次生成的 img 元素的 src，并把路径记入内存索引。
+    knownThumbnailFiles.add(thumbPath);
+    updateAll(adapter.getResourcePath(thumbPath));
   } catch (error: unknown) {
-    // 如果只是并发场景下偶发的 "File already exists."，尝试直接复用已存在文件，并不视为真正错误
-    if (error instanceof Error && error.message === "File already exists.") {
-      const existedNow = plugin.app.vault.getAbstractFileByPath(thumbPath);
-      if (existedNow instanceof TFile) {
-        updateAll(plugin.app.vault.getResourcePath(existedNow));
-        return;
-      }
-    }
     console.error("Failed to generate thumbnail for", file.path, error);
   } finally {
     generatingThumbnails.delete(thumbPath);
@@ -293,32 +309,31 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
  * 删除图片时，image-actions.ts 会显式先删缓存再删原图；但如果用户是通过 Obsidian 原生
  * 方式（文件管理器重命名/移动/删除）操作原图，这两个动作都不会经过插件的删除逻辑——
  * 重命名后旧路径算出的缓存文件不再被任何原图对应，永久变成孤儿，且无从复用（新路径会
- * 生成新的缓存），只会在 assets/cache/ 里越积越多；直接删除原图后同理，旧缓存不会被清理。
- * 这里监听 vault 的 rename/delete 事件，让缓存跟着原图重命名/删除。
+ * 生成新的缓存）；直接删除原图后同理，旧缓存不会被清理。
+ * 这里监听 vault 的 rename/delete 事件，让缓存跟着原图删除。
  */
 export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
+  const adapter = plugin.app.vault.adapter;
   plugin.registerEvent(
     plugin.app.vault.on("rename", (file, oldPath) => {
-      // 缓存目录自身文件的 rename/delete 不需要（也不应该）触发这里的逻辑，
-      // 否则会对一个本就是缓存文件的路径去找"它的缓存"，纯属无意义的空转。
+      // 缓存目录自身文件的 rename/delete 不需要（也不应该）触发这里的逻辑。
       if (!(file instanceof TFile) || file.path.startsWith(runtimeDefaults.thumbnailPath) || oldPath.startsWith(runtimeDefaults.thumbnailPath)) {
         return;
       }
       void (async () => {
-        // grid / masonry 各自独立的缓存文件都要跟着迁移，否则未被当前笔记使用的
-        // 那一种模式的缓存会在旧路径下变成孤儿。
+        // 原图重命名后，旧路径算出的缓存文件名不再对应该原图，新路径会算出新的文件名。
+        // 缓存文件名是 md5(原图路径)，单向不可逆，无法从旧缓存反推出新缓存去"改名"；
+        // 直接删掉旧缓存（两种模式各自独立），下次渲染按新路径重新生成即可——代价只是一次
+        // 重新生成，比"复制再改名"简单可靠得多。
         for (const mode of THUMBNAIL_MODES) {
           const oldThumbPath = getThumbPath(oldPath, mode);
-          const oldThumb = plugin.app.vault.getAbstractFileByPath(oldThumbPath);
-          if (!(oldThumb instanceof TFile)) continue; // 该模式原本就没有缓存，无需迁移
-
-          const newThumbPath = getThumbPath(file.path, mode);
-          if (plugin.app.vault.getAbstractFileByPath(newThumbPath)) continue; // 目标路径已有缓存，保留旧缓存原样，避免覆盖
-
           try {
-            await plugin.app.vault.rename(oldThumb, newThumbPath);
+            if (await adapter.exists(oldThumbPath)) {
+              await adapter.remove(oldThumbPath);
+              knownThumbnailFiles.delete(oldThumbPath);
+            }
           } catch (error: unknown) {
-            console.error("Failed to migrate thumbnail cache after rename", oldPath, "->", file.path, mode, error);
+            console.error("Failed to remove thumbnail cache after rename", oldPath, "->", file.path, mode, error);
           }
         }
       })();
@@ -331,11 +346,12 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
       void (async () => {
         for (const mode of THUMBNAIL_MODES) {
           const thumbPath = getThumbPath(file.path, mode);
-          const thumb = plugin.app.vault.getAbstractFileByPath(thumbPath);
           // 通过插件自带删除按钮删除时，缓存已经被 image-actions.ts 提前删掉，这里查不到，直接跳过。
-          if (!(thumb instanceof TFile)) continue;
           try {
-            await plugin.app.fileManager.trashFile(thumb);
+            if (await adapter.exists(thumbPath)) {
+              await adapter.remove(thumbPath);
+              knownThumbnailFiles.delete(thumbPath);
+            }
           } catch (error: unknown) {
             console.error("Failed to clean up thumbnail cache after delete", file.path, mode, error);
           }
@@ -350,7 +366,7 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
  *
  * 背景：registerThumbnailCacheLifecycle 只能覆盖"插件运行期间、经由 Obsidian 的
  * rename/delete 事件触发"的原图变更。如果原图是在插件被禁用期间、或通过 vault 外部工具
- * 被移动/删除的，对应缓存不会经过那两个监听器，只会在 assets/cache/ 里永久沉积。
+ * 被移动/删除的，对应缓存不会经过那两个监听器，只会在缓存目录里永久沉积。
  *
  * 这里做一次扫描：对 vault 中每个图片文件，按当前目标分辨率重新计算一遍
  * "如果现在渲染它，期望的缓存路径是什么"，得到一份当前仍然有效的缓存路径集合；
@@ -367,8 +383,9 @@ export function registerThumbnailCacheLifecycle(plugin: ImgRowPlugin): void {
  * @returns 实际删除的孤儿缓存文件数
  */
 export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise<number> {
-  const cacheFolder = plugin.app.vault.getAbstractFileByPath(normalizePath(runtimeDefaults.thumbnailPath));
-  if (!(cacheFolder instanceof TFolder)) return 0;
+  const adapter = plugin.app.vault.adapter;
+  const cacheDir = normalizePath(runtimeDefaults.thumbnailPath);
+  if (!(await adapter.exists(cacheDir))) return 0;
 
   const validThumbPaths = new Set<string>();
   for (const file of plugin.app.vault.getFiles()) {
@@ -383,16 +400,100 @@ export async function pruneOrphanedThumbnailCache(plugin: ImgRowPlugin): Promise
   }
 
   let removed = 0;
-  for (const child of cacheFolder.children) {
-    if (!(child instanceof TFile) || validThumbPaths.has(child.path)) continue;
+  const { files } = await adapter.list(cacheDir);
+  for (const childPath of files) {
+    if (validThumbPaths.has(childPath)) continue;
     try {
-      await plugin.app.fileManager.trashFile(child);
+      await adapter.remove(childPath);
+      knownThumbnailFiles.delete(childPath);
       removed++;
     } catch (error: unknown) {
-      console.error("Failed to prune orphaned thumbnail cache", child.path, error);
+      console.error("Failed to prune orphaned thumbnail cache", childPath, error);
     }
   }
   return removed;
+}
+
+/** 递归统计缓存目录（含子目录）占用的磁盘字节数。 */
+async function sizeOfCacheDir(adapter: DataAdapter, dir: string): Promise<number> {
+  const { files, folders } = await adapter.list(dir);
+  let total = 0;
+  for (const filePath of files) {
+    total += (await adapter.stat(filePath))?.size ?? 0;
+  }
+  for (const folder of folders) {
+    total += await sizeOfCacheDir(adapter, folder);
+  }
+  return total;
+}
+
+/** 计算当前缩略图缓存占用的磁盘空间（字节），供设置页展示。 */
+export async function computeThumbnailCacheSize(plugin: ImgRowPlugin): Promise<number> {
+  const adapter = plugin.app.vault.adapter;
+  const cacheDir = normalizePath(runtimeDefaults.thumbnailPath);
+  if (!(await adapter.exists(cacheDir))) return 0;
+  return sizeOfCacheDir(adapter, cacheDir);
+}
+
+/** 清空整个缩略图缓存目录（递归删除），并同步清空内存索引。 */
+export async function clearThumbnailCache(plugin: ImgRowPlugin): Promise<void> {
+  const adapter = plugin.app.vault.adapter;
+  const cacheDir = normalizePath(runtimeDefaults.thumbnailPath);
+  if (await adapter.exists(cacheDir)) {
+    await adapter.rmdir(cacheDir, true);
+  }
+  knownThumbnailFiles.clear();
+}
+
+/**
+ * 把老版本（<=1.4.11）默认放在 assets/cache/ 的缩略图缓存迁移到新的插件目录位置。
+ *
+ * 只处理"仍在使用旧默认目录"的用户：缓存文件名是 md5(原图路径@分辨率)，与目录无关，
+ * 因此迁移即"把旧目录下的文件原样搬到新目录"。用户自定义过缓存路径的一律不动（那
+ * 是他们的显式选择，adapter 对 vault 内任意路径都能读写，自定义路径仍然有效）。
+ * 旧版本里"清空路径 = 使用默认"，因此空字符串也按旧默认处理。
+ */
+export async function migrateLegacyThumbnailCache(plugin: ImgRowPlugin): Promise<void> {
+  const adapter = plugin.app.vault.adapter;
+
+  const storedPath = (plugin.settings.cachePath ?? "").trim();
+  const usesLegacyDefault = storedPath === ""
+    || normalizeCacheFolderPath(storedPath) === normalizeCacheFolderPath(config.LEGACY_THUMBNAIL_PATH);
+  if (!usesLegacyDefault) return;
+
+  const legacyDir = normalizePath(config.LEGACY_THUMBNAIL_PATH);
+  const newDir = normalizePath(config.DEFAULT_THUMBNAIL_PATH);
+
+  if (await adapter.exists(legacyDir)) {
+    if (newDir !== legacyDir) {
+      await ensureDir(adapter, newDir);
+
+      const { files } = await adapter.list(legacyDir);
+      for (const filePath of files) {
+        const fileName = filePath.slice(filePath.lastIndexOf("/") + 1);
+        if (!fileName) continue;
+        const targetPath = normalizePath(`${newDir}/${fileName}`);
+        try {
+          await adapter.writeBinary(targetPath, await adapter.readBinary(filePath));
+        } catch (error: unknown) {
+          console.error("Failed to migrate thumbnail cache file", filePath, error);
+        }
+      }
+
+      // 迁移完成（或部分完成）后删除旧目录，避免空壳残留；即使个别文件迁移失败，
+      // 它们也只是可再生的缓存，丢弃无害。
+      try {
+        await adapter.rmdir(legacyDir, true);
+      } catch (error: unknown) {
+        console.error("Failed to remove legacy thumbnail cache directory", legacyDir, error);
+      }
+    }
+  }
+
+  // 无论有没有旧缓存，都把设置切换到新默认，避免后续缩略图继续写到旧位置。
+  plugin.settings.cachePath = config.DEFAULT_THUMBNAIL_PATH;
+  runtimeDefaults.thumbnailPath = config.DEFAULT_THUMBNAIL_PATH;
+  await plugin.saveSettings();
 }
 
 /** 注册命令面板命令，供用户手动触发 pruneOrphanedThumbnailCache 并看到结果反馈。 */

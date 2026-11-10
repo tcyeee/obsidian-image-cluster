@@ -5,7 +5,7 @@ import { registerHoverGroupTrigger } from "./src/hover-group-trigger";
 import { registerImageDragSource } from "./src/image-drag-source";
 import { registerEditorDropTarget } from "./src/editor-drop-target";
 import { ImgRowPluginSettings, DEFAULT_SETTINGS, ImgRowSettingTab, applySettingsToConfig } from "./src/settings";
-import { registerThumbnailCacheLifecycle, registerPruneOrphanedThumbnailsCommand } from "./src/thumbnail/thumbnail";
+import { registerThumbnailCacheLifecycle, registerPruneOrphanedThumbnailsCommand, migrateLegacyThumbnailCache, seedThumbnailCacheIndex } from "./src/thumbnail/thumbnail";
 import { registerDragStateLifecycle } from "./src/drag-state";
 import { setLocale } from "./src/i18n";
 
@@ -14,6 +14,11 @@ export default class ImgRowPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+
+		// 旧版本（<=1.4.11）的缩略图默认缓存在 assets/cache/，这里在首次加载时把它迁移到插件目录；
+		// 随后建立内存索引，供渲染时同步判断缩略图是否已缓存（避免先闪回原图再切缩略图）。
+		await migrateLegacyThumbnailCache(this);
+		await seedThumbnailCacheIndex(this);
 
 		// 自动解析imgs代码块
 		addImageLayoutMarkdownProcessor(this);
