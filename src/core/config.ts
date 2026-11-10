@@ -22,7 +22,7 @@ export const config = {
     LIMIT_MAX_RETRY: 5,  // 限制最大重试次数
 
     /* PREVIEW */
-    PREVIEW_MIN_SCALE: 1.0, // 预览最小缩放比例
+    PREVIEW_MIN_SCALE: 0.5, // 预览最小缩放比例（可缩小到 50%）
     PREVIEW_MAX_SCALE: 2.5, // 预览最大缩放比例
 
     /* PANEL */
