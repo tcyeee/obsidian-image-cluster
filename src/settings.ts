@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: ImgRowPluginSettings = {
     defaultShadow: false,
     enableHoverGroupButton: true,
     enableDragToGroup: true,
-    enableThumbnailBorderTrim: true,
+    enableThumbnailBorderTrim: false,
     cachePath: config.DEFAULT_THUMBNAIL_PATH,
 };
 
@@ -92,6 +92,25 @@ export class ImgRowSettingTab extends PluginSettingTab {
                                         // 因为共享同一个 t 对象，下次渲染时会自动读到新文案。display() 在声明式
                                         // 设置页（getSettingDefinitions 非空）下已被废弃、不会被调用，需用 update()。
                                         this.update();
+                                    })
+                            );
+                        },
+                    },
+                ],
+            },
+            {
+                type: "group",
+                items: [
+                    {
+                        name: t.settings.thumbnailBorderTrim.name,
+                        desc: t.settings.thumbnailBorderTrim.desc,
+                        render: (setting: Setting) => {
+                            setting.addToggle(toggle =>
+                                toggle
+                                    .setValue(this.plugin.settings.enableThumbnailBorderTrim)
+                                    .onChange(async value => {
+                                        this.plugin.settings.enableThumbnailBorderTrim = value;
+                                        await this.plugin.saveSettings();
                                     })
                             );
                         },

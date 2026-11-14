@@ -239,7 +239,7 @@ export async function ensureThumbnailForFile(plugin: ImgRowPlugin, file: TFile, 
     // 会把留白也一起保留在裁剪未触及的那条边上。这里先尝试去除留白，
     // 再基于实际内容区域生成缩略图，避免缩略图里出现大片纯色边。
     // 这是一种启发式检测，理论上可能误裁到内容本身贴近纯色背景的图片，
-    // 因此提供开关，关闭后完全回退到整图（不裁边）。
+    // 因此提供开关（默认关闭），开启后生效，关闭则完全回退到整图（不裁边）。
     // 视频封面帧不参与这项检测（detectContentRect 只接受 HTMLImageElement，
     // 且视频画面出现大片纯色留白的情况本就少见），直接使用整帧。
     const content = !isVideo && plugin.settings.enableThumbnailBorderTrim

@@ -6,6 +6,11 @@ import { openContextMenuForImage } from "./image";
 // 关联每个图片容器与其设置面板中的 limit 复选框，供蒙版点击时直接同步 UI 状态
 export const containerLimitCheckboxMap = new WeakMap<HTMLDivElement, HTMLInputElement>();
 
+// 记录已经为哪些 <img> 挂过"瀑布流重新测量"监听器，避免 applyMasonryLayout 被反复调用时
+// （例如同一容器内多张图片陆续加载完成，每次都会重新跑一遍 run()）对同一个 img 重复 addEventListener
+// 叠加出多个监听器。见 applyMasonryLayout 内 img.naturalWidth 分支的使用处。
+const masonryRemeasureListenerAttached = new WeakSet<HTMLImageElement>();
+
 /**
  * 获取当前缩略图对应的外层 wrapper（如果存在且为本插件创建的 wrapper）。
  */
@@ -356,12 +361,16 @@ export function applyMasonryLayout(
             if (img) {
                 if (img.naturalWidth && img.naturalHeight) {
                     itemHeight = Math.round((columnWidth * img.naturalHeight) / img.naturalWidth);
-                } else {
-                    // 图片还没加载完，先按方形占位；加载完成后用最新的长宽比重新计算一次
-                    // （naturalWidth/Height 此时才可用）。只监听一次即可：本插件生成的
-                    // 缩略图与原图长宽比始终一致，后续 src 从原图切换到缓存缩略图不会
-                    // 改变比例，不需要重复监听。
-                    img.addEventListener("load", () => applyMasonryLayout(container, option, onLimitTogglePersist), { once: true });
+                }
+                // 缩略图未命中缓存时，img 会先用原图占位、生成完成后把 src 换成裁剪后的缩略图
+                // （见 ensureThumbnailForFile）。开启纯色边框裁剪后，瀑布流模式的缩略图是按
+                // 实际内容区域裁剪的，长宽比可能与原图不同——不能假设只需等一次 load：
+                // 不管本次测量时 naturalWidth/Height 是否已经可用（可能是原图已加载完的比例，
+                // 后面还会再变一次），都要继续监听，等 src 最终定格为缩略图后再重新测量一次。
+                // 用 WeakSet 保证每个 img 只挂一个监听器，不会因为 run() 被重复调用而叠加。
+                if (!masonryRemeasureListenerAttached.has(img)) {
+                    masonryRemeasureListenerAttached.add(img);
+                    img.addEventListener("load", () => applyMasonryLayout(container, option, onLimitTogglePersist));
                 }
             }
 
