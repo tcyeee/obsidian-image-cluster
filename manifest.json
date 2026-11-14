@@ -1,7 +1,7 @@
 {
 	"id": "image-cluster",
 	"name": "Image Cluster",
-	"version": "1.4.12",
+	"version": "1.4.13",
 	"minAppVersion": "1.13.4",
 	"description": "Group multiple images into a tidy gallery grid or photo collage inside your notes. Customize size, gap, border radius and shadow for a clean, organized markdown layout — ideal for note-taking and visual journals.",
 	"author": "tcyeee",
