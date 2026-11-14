@@ -52,6 +52,9 @@ export const config = {
     DEFAULT_HIDDEN: false,       // 默认是否隐藏图片
     DEFAULT_LIMIT: false,        // 默认是否限制显示行数
     DEFAULT_PADDING_LEFT: 0,     // 默认左侧内移像素（0 表示不右移；单位 px）
+
+    /* ROUNDED CORNER */
+    ROUNDED_CORNER_RADIUS: 8,    // 圆角开关打开时使用的固定圆角像素值，关闭时为 0
 };
 
 /**

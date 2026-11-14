@@ -78,6 +78,7 @@ export const zh: Translations = {
         masonry: "瀑布流",
         canvasSize: "画布尺寸",
         appearance: "外观",
+        radius: "圆角",
         border: "边框",
         shadow: "阴影",
         hidden: "隐藏",

@@ -76,6 +76,7 @@ export const en = {
         masonry: "Masonry",
         canvasSize: "Canvas size",
         appearance: "Appearance",
+        radius: "rounded",
         border: "border",
         shadow: "shadow",
         hidden: "hidden",

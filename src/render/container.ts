@@ -190,11 +190,12 @@ function setupSettingPanel(
     sizeGroupName: string,
     layoutGroupName: string,
 ): { panel: HTMLDivElement; persistIfNeeded: () => void; limitCheckbox: HTMLInputElement | null } {
-    const { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios, pluginSettingsBtn }: SettingPanelDom = createSettingPanelDom(sizeGroupName, layoutGroupName);
+    const { panel, radiusCheckbox, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios, pluginSettingsBtn }: SettingPanelDom = createSettingPanelDom(sizeGroupName, layoutGroupName);
 
     // 注意：panel 的 DOM 挂载由调用方（createContainer）负责
 
     // 根据当前的配置初始化面板勾选状态
+    if (radiusCheckbox) radiusCheckbox.checked = option.radius > 0;
     if (borderCheckbox) borderCheckbox.checked = option.border;
     if (shadowCheckbox) shadowCheckbox.checked = option.shadow;
     if (hiddenCheckbox) hiddenCheckbox.checked = option.hidden;
@@ -231,6 +232,11 @@ function setupSettingPanel(
     };
 
     // 绑定事件：勾选框/单选按钮改变时，实时更新配置并作用到当前容器（但先不立刻写文件）
+    radiusCheckbox?.addEventListener("change", () => {
+        option.radius = radiusCheckbox.checked ? config.ROUNDED_CORNER_RADIUS : 0;
+        applySettingsToContainer(container, option);
+        hasPendingChanges = true;
+    });
     borderCheckbox?.addEventListener("change", () => {
         option.border = !!borderCheckbox.checked;
         applySettingsToContainer(container, option);
@@ -275,17 +281,14 @@ function setupSettingPanel(
                 case "small":
                     option.size = config.SMALL_SIZE;
                     option.gap = config.SMALL_GAP;
-                    option.radius = config.SMALL_RADIUS;
                     break;
                 case "medium":
                     option.size = config.MEDIUM_SIZE;
                     option.gap = config.MEDIUM_GAP;
-                    option.radius = config.MEDIUM_RADIUS;
                     break;
                 case "large":
                     option.size = config.LARGE_SIZE;
                     option.gap = config.LARGE_GAP;
-                    option.radius = config.LARGE_RADIUS;
                     break;
             }
             applySettingsToContainer(container, option);

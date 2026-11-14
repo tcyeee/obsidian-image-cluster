@@ -40,6 +40,7 @@ export interface PreviewItem {
 
 export interface SettingPanelDom {
     panel: HTMLDivElement;
+    radiusCheckbox: HTMLInputElement | null;
     borderCheckbox: HTMLInputElement | null;
     shadowCheckbox: HTMLInputElement | null;
     hiddenCheckbox: HTMLInputElement | null;
