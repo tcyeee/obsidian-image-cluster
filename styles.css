@@ -123,7 +123,7 @@
 	max-width: 90%;
 	max-height: 90%;
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  border-radius: var(--plugin-image-radius, 10px);
+  border-radius: 5px;
   transition: transform 0.2s;
   cursor: grab;
   /* 平移/缩放由 JS 注入 CSS 变量驱动 */

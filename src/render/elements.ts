@@ -73,6 +73,7 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
     const appearanceSection = createDiv({ cls: "plugin-image-setting-section" });
     appearanceSection.appendChild(createSectionTitle(t.settingPanel.appearance));
     const checkboxList = createDiv({ cls: "plugin-image-setting-checkbox-list" });
+    checkboxList.appendChild(createSettingCheckbox("radius", t.settingPanel.radius));
     checkboxList.appendChild(createSettingCheckbox("border", t.settingPanel.border));
     checkboxList.appendChild(createSettingCheckbox("shadow", t.settingPanel.shadow));
     checkboxList.appendChild(createSettingCheckbox("hidden", t.settingPanel.hidden));
@@ -92,6 +93,7 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
     footer.appendChild(pluginSettingsBtn);
     panel.appendChild(footer);
 
+    const radiusCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="radius"]');
     const borderCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="border"]');
     const shadowCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="shadow"]');
     const hiddenCheckbox = panel.querySelector<HTMLInputElement>('input[data-setting="hidden"]');
@@ -104,7 +106,7 @@ export function createSettingPanelDom(sizeGroupName: string, layoutGroupName: st
         panel.querySelectorAll<HTMLInputElement>('input[type="radio"][name="' + layoutGroupName + '"]'),
     );
 
-    return { panel, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios, pluginSettingsBtn };
+    return { panel, radiusCheckbox, borderCheckbox, shadowCheckbox, hiddenCheckbox, limitCheckbox, paddingLeftCheckbox, sizeRadios, layoutRadios, pluginSettingsBtn };
 }
 
 // 面板分组标题（如 "Canvas size" / "Appearance"）
@@ -145,12 +147,12 @@ function createLayoutRadio(layoutKey: "grid" | "masonry", labelText: string, lay
 /**
  * 创建 setting 面板中的 checkbox 元素
  * 
- * @param settingKey - 设置键（border / shadow / hidden）
+ * @param settingKey - 设置键（radius / border / shadow / hidden）
  * @param text - 文字
  * @param checked - 是否选中
- * @returns 
+ * @returns
  */
-function createSettingCheckbox(settingKey: "border" | "shadow" | "hidden" | "limit" | "padding-left", text: string) {
+function createSettingCheckbox(settingKey: "radius" | "border" | "shadow" | "hidden" | "limit" | "padding-left", text: string) {
     const label = createEl("label", { cls: "plugin-image-setting-checkbox" });
 
     const textSpan = createSpan({ cls: "plugin-image-setting-checkbox-label", text });
