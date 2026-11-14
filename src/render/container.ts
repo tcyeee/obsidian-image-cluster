@@ -7,6 +7,24 @@ import { persistOptionsToSource } from "../markdown/persistence";
 import { createImageContainerElement, createSettingButtonElement, createSettingPanelDom } from "./elements";
 import { applySettingsToContainer, containerLimitCheckboxMap } from "./layout";
 
+// 尺寸 / 圆角变化的过渡动画时长，需与 styles.css 中 .plugin-image-settings-animate 的
+// transition 时长保持一致。只在用户通过 setting 面板主动触发这几项变化时短暂启用，
+// 避免影响首次挂载、瀑布流加载期间的自动重排（那些场景沿用原有的无动画行为）。
+const SETTINGS_TRANSITION_MS = 220;
+
+function applyWithTransition(container: HTMLDivElement, run: () => void): void {
+    container.classList.add("plugin-image-settings-animate");
+    // 强制同步重排：让浏览器先提交"刚加上 animate 类、属性还是旧值"这一帧的样式，
+    // 下面 run() 里对尺寸/圆角的修改才会被识别成真正的变化去触发 transition。
+    // 否则类名切换和属性修改会被合并进同一次样式计算，部分方向的切换会直接跳到
+    // 终值、不播放过渡（圆角开启能看到动画、关闭却没有动画就是这个原因）。
+    void container.offsetHeight;
+    run();
+    window.setTimeout(() => {
+        container.classList.remove("plugin-image-settings-animate");
+    }, SETTINGS_TRANSITION_MS);
+}
+
 // app.setting 是 Obsidian 运行时对象，未出现在官方类型声明（obsidian.d.ts）里——
 // 打开设置页并跳转到指定 Tab（如本插件的设置页）就是通过它实现的。
 interface AppSettingActions {
@@ -234,7 +252,7 @@ function setupSettingPanel(
     // 绑定事件：勾选框/单选按钮改变时，实时更新配置并作用到当前容器（但先不立刻写文件）
     radiusCheckbox?.addEventListener("change", () => {
         option.radius = radiusCheckbox.checked ? config.ROUNDED_CORNER_RADIUS : 0;
-        applySettingsToContainer(container, option);
+        applyWithTransition(container, () => applySettingsToContainer(container, option));
         hasPendingChanges = true;
     });
     borderCheckbox?.addEventListener("change", () => {
@@ -291,7 +309,7 @@ function setupSettingPanel(
                     option.gap = config.LARGE_GAP;
                     break;
             }
-            applySettingsToContainer(container, option);
+            applyWithTransition(container, () => applySettingsToContainer(container, option));
             hasPendingChanges = true;
         });
     });

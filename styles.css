@@ -7,6 +7,19 @@
   position: relative;
 }
 
+/* 用户在 setting 面板里主动调整尺寸 / 圆角时，临时加上这个类让变化过渡得平滑一些；
+   仅在交互期间短暂生效（见 container.ts），不会影响首次挂载或瀑布流加载过程中的
+   自动重排（那些场景此前就刻意不加动画，避免闪烁，见项目记忆）。 */
+.plugin-image-settings-animate .plugin-image-wrapper {
+  transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease;
+}
+.plugin-image-settings-animate .plugin-image-error {
+  transition: width 0.2s ease, height 0.2s ease;
+}
+.plugin-image-settings-animate.plugin-image-container[data-layout="masonry"] > .plugin-image-wrapper {
+  transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease, border-radius 0.2s ease;
+}
+
 /* 拖拽排序 */
 .plugin-image-sortable       { cursor: grab; }
 .plugin-image-dragging       { opacity: 0.35; }
@@ -29,6 +42,9 @@
   width: 100%;
   border-radius: var(--plugin-image-radius, 10px);
   position: relative;
+}
+.plugin-image-settings-animate .plugin-image {
+  transition: border-radius 0.2s ease;
 }
 
 /* 图片加载失败时显示的占位错误块 */
